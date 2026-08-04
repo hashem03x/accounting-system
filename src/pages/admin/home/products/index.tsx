@@ -32,7 +32,6 @@ import PaginationHandler from "@/components/ui/pagination-handler";
 import { isAdmin } from "@/utils/constants/roles";
 import { useUser } from "@/context/UserContext";
 import GlobalDiscount from "./_components/global-discount";
-import ShopifyGlobalSyncActions from "./_components/shopify-global-sync-actions";
 import SyncSelectedBar from "./_components/sync-selected-bar";
 
 const PRODUCTS_PER_PAGE = import.meta.env.VITE_PRODUCTS_PER_PAGE || DEFAULT_ITEMS_PER_PAGE;
@@ -184,7 +183,11 @@ export default function Products() {
               </Button>
             </Link>
             <GlobalDiscount singleProduct={null} />
-            <ShopifyGlobalSyncActions />
+            <Link to={`${paths.admin}/${paths.shopifySync}`}>
+              <Button variant="light" color="indigo" leftSection={<solidIcons.ArrowPath />}>
+                {translate("Shopify Sync", "مزامنة Shopify")}
+              </Button>
+            </Link>
             <ImportButton url="import/products" callback={handleLoadProducts} />
             <Link to={`${paths.new}`}>
               <Button variant="light" color="teal" leftSection={<solidIcons.Plus />}>

@@ -3,9 +3,11 @@ import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import ConnectionStatus from "./_components/connection-status";
+import QueueStatusSection from "./_components/queue-status-section";
 import ProductSyncSection from "./_components/product-sync-section";
 import InventorySyncSection from "./_components/inventory-sync-section";
 import MappingSection from "./_components/mapping-section";
+import FailedSyncsSection from "./_components/failed-syncs-section";
 import LogsSection from "./_components/logs-section";
 
 /**
@@ -39,11 +41,13 @@ export default function ShopifySyncPage() {
     >
       <div className="flex flex-col gap-4">
         <ConnectionStatus refreshKey={refreshKey} />
+        <QueueStatusSection refreshKey={refreshKey} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ProductSyncSection onActionTriggered={bumpRefresh} />
           <InventorySyncSection onActionTriggered={bumpRefresh} />
         </div>
         <MappingSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
+        <FailedSyncsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
         <LogsSection refreshKey={refreshKey} />
       </div>
     </AdminLayoutBox>

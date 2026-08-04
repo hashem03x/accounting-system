@@ -40,6 +40,10 @@ export default function ConnectionStatus({ refreshKey }: { refreshKey: number })
 
   useEffect(() => {
     fetchStatus();
+    // Background jobs triggered from this page complete asynchronously - poll so "Last Product
+    // Sync"/"Last Inventory Sync" reflect real completion without requiring a manual refresh.
+    const interval = setInterval(fetchStatus, 15000);
+    return () => clearInterval(interval);
   }, [fetchStatus]);
 
   return (
