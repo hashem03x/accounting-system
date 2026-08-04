@@ -28,7 +28,7 @@ export default function ConnectionStatus({ refreshKey }: { refreshKey: number })
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await privateRequest({ url: "https://api.alpha.leopardegy.com/api/v1/shopify/status", language });
+      const response = await privateRequest({ url: "shopify/status", language });
       setData(response.data);
     } catch {
       setData(null);
@@ -40,10 +40,6 @@ export default function ConnectionStatus({ refreshKey }: { refreshKey: number })
 
   useEffect(() => {
     fetchStatus();
-    // Background jobs triggered from this page complete asynchronously - poll so "Last Product
-    // Sync"/"Last Inventory Sync" reflect real completion without requiring a manual refresh.
-    const interval = setInterval(fetchStatus, 15000);
-    return () => clearInterval(interval);
   }, [fetchStatus]);
 
   return (
