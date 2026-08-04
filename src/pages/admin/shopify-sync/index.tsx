@@ -3,6 +3,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import ConnectionStatus from "./_components/connection-status";
+import StoreInitSection from "./_components/store-init-section";
 import QueueStatusSection from "./_components/queue-status-section";
 import ProductSyncSection from "./_components/product-sync-section";
 import InventorySyncSection from "./_components/inventory-sync-section";
@@ -40,6 +41,7 @@ export default function ShopifySyncPage() {
       }}
     >
       <div className="flex flex-col gap-4">
+        <StoreInitSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
         <ConnectionStatus refreshKey={refreshKey} />
         <QueueStatusSection refreshKey={refreshKey} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
