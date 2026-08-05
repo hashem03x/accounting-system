@@ -50,18 +50,39 @@ export default function ImportButton({ url, callback }: { url: string; callback:
     formData.append("file", file);
 
     handleRequest(language, setLoading, setError, async () => {
-      await privateRequest({
+      const response = await privateRequest({
         url,
         method: "POST",
         data: formData,
         language,
       });
 
-      notifications.show({
-        title: translate("Success", "نجاح"),
-        message: translate("Data imported successfully", "تم استيراد البيانات بنجاح"),
-        color: "green",
-      });
+      // The backend returns HTTP 207 (still "ok" to fetch, so this never throws) for a partial
+      // import - some products/variants were skipped with a per-row reason in response.data.errors.
+      // Previously this response was never inspected at all, so a partial failure looked identical
+      // to a full success to whoever ran the import - they'd only find out rows were dropped by
+      // spotting missing products later.
+      const skippedCount = response?.data?.errors?.length ?? 0;
+      if (response?.status === "partial_success" || skippedCount > 0) {
+        notifications.show({
+          title: translate("Imported with some errors", "تم الاستيراد مع بعض الأخطاء"),
+          message: translate(
+            `Imported ${response?.results ?? 0} product(s). ${skippedCount} product(s) were skipped - see console for details.`,
+            `تم استيراد ${response?.results ?? 0} منتج. تم تخطي ${skippedCount} منتج - راجع وحدة التحكم للتفاصيل.`,
+          ),
+          color: "yellow",
+          autoClose: 10000,
+          withBorder: true,
+        });
+        // eslint-disable-next-line no-console
+        console.warn("CSV import partial failures", response?.data?.errors);
+      } else {
+        notifications.show({
+          title: translate("Success", "نجاح"),
+          message: translate("Data imported successfully", "تم استيراد البيانات بنجاح"),
+          color: "green",
+        });
+      }
 
       callback();
     });
