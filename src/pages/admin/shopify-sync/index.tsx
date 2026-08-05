@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
+import IntegrationSummary from "./_components/integration-summary";
 import ConnectionStatus from "./_components/connection-status";
 import StoreInitSection from "./_components/store-init-section";
 import QueueStatusSection from "./_components/queue-status-section";
@@ -10,6 +11,8 @@ import InventorySyncSection from "./_components/inventory-sync-section";
 import MappingSection from "./_components/mapping-section";
 import FailedSyncsSection from "./_components/failed-syncs-section";
 import LogsSection from "./_components/logs-section";
+
+const DEV_MODE_STORAGE_KEY = "shopify-sync-dev-mode";
 
 /**
  * "Shopify Synchronization" admin page - the control center for the Shopify integration
@@ -29,6 +32,12 @@ export default function ShopifySyncPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const bumpRefresh = () => setRefreshKey(k => k + 1);
 
+  const [devMode, setDevMode] = useState(() => localStorage.getItem(DEV_MODE_STORAGE_KEY) === "true");
+  const changeDevMode = (value: boolean) => {
+    setDevMode(value);
+    localStorage.setItem(DEV_MODE_STORAGE_KEY, String(value));
+  };
+
   return (
     <AdminLayoutBox
       header={{
@@ -41,16 +50,22 @@ export default function ShopifySyncPage() {
       }}
     >
       <div className="flex flex-col gap-4">
-        <StoreInitSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
-        <ConnectionStatus refreshKey={refreshKey} />
-        <QueueStatusSection refreshKey={refreshKey} />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ProductSyncSection onActionTriggered={bumpRefresh} />
-          <InventorySyncSection onActionTriggered={bumpRefresh} />
-        </div>
-        <MappingSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
-        <FailedSyncsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
-        <LogsSection refreshKey={refreshKey} />
+        <IntegrationSummary refreshKey={refreshKey} onActionTriggered={bumpRefresh} devMode={devMode} onDevModeChange={changeDevMode} />
+
+        {devMode && (
+          <>
+            <StoreInitSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
+            <ConnectionStatus refreshKey={refreshKey} />
+            <QueueStatusSection refreshKey={refreshKey} />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <ProductSyncSection onActionTriggered={bumpRefresh} />
+              <InventorySyncSection onActionTriggered={bumpRefresh} />
+            </div>
+            <MappingSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
+            <FailedSyncsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
+            <LogsSection refreshKey={refreshKey} />
+          </>
+        )}
       </div>
     </AdminLayoutBox>
   );

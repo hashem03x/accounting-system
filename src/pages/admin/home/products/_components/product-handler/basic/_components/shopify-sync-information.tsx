@@ -69,12 +69,49 @@ export default function ShopifySyncInformation() {
   async function runAction(action: "sync" | "inventory" | "force", path: string) {
     setActionLoading(action);
     try {
-      await privateRequest({ url: `shopify/products/${currentProduct!._id}/${path}`, method: "POST", language });
-      notifySuccess({
-        language,
-        title: translate("Success", "نجاح"),
-        message: translate("Shopify sync completed", "تمت مزامنة Shopify بنجاح"),
-      });
+      const response = await privateRequest({ url: `shopify/products/${currentProduct!._id}/${path}`, method: "POST", language });
+      // The backend returns HTTP 200 for several non-success outcomes (ambiguous match, mapping
+      // conflict, locked, nothing to do) - a 200 response alone does NOT mean the sync succeeded,
+      // so branch on the actual outcome status instead of assuming a thrown error is the only
+      // failure mode. See ProductSyncOutcome in integration-service/src/sync/product-sync.ts.
+      const outcomeStatus: string | undefined = response.data?.status;
+      if (outcomeStatus === "ambiguous") {
+        notifyError({
+          language,
+          title: translate("Needs manual review", "يتطلب مراجعة يدوية"),
+          message: translate(
+            "Multiple possible Shopify matches were found - nothing was changed. Check the sync logs.",
+            "تم العثور على عدة تطابقات محتملة في Shopify - لم يتم تغيير أي شيء. راجع سجلات المزامنة.",
+          ),
+        });
+      } else if (outcomeStatus === "conflict") {
+        notifyError({
+          language,
+          title: translate("Mapping conflict", "تعارض في الربط"),
+          message: translate(
+            "The matching Shopify product is already linked to a different accounting product - nothing was changed.",
+            "المنتج المطابق في Shopify مرتبط بالفعل بمنتج محاسبي آخر - لم يتم تغيير أي شيء.",
+          ),
+        });
+      } else if (outcomeStatus === "skipped-locked") {
+        notifyError({
+          language,
+          title: translate("Try again", "حاول مرة أخرى"),
+          message: translate("Another sync for this product is already running - try again shortly.", "هناك مزامنة أخرى لهذا المنتج قيد التشغيل بالفعل - حاول مرة أخرى بعد قليل."),
+        });
+      } else if (outcomeStatus === "skipped-nothing-to-archive" || outcomeStatus === "skipped-unchanged") {
+        notifySuccess({
+          language,
+          title: translate("Nothing to do", "لا يوجد شيء لتنفيذه"),
+          message: translate("Already up to date on Shopify.", "محدّث بالفعل على Shopify."),
+        });
+      } else {
+        notifySuccess({
+          language,
+          title: translate("Success", "نجاح"),
+          message: translate("Shopify sync completed", "تمت مزامنة Shopify بنجاح"),
+        });
+      }
       await fetchStatus();
     } catch (err) {
       notifyError({
