@@ -56,7 +56,7 @@ export default function ShopifySyncPage() {
           <>
             <StoreInitSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
             <ConnectionStatus refreshKey={refreshKey} />
-            <QueueStatusSection refreshKey={refreshKey} />
+            <QueueStatusSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <ProductSyncSection onActionTriggered={bumpRefresh} />
               <InventorySyncSection onActionTriggered={bumpRefresh} />

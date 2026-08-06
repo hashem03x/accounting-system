@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { useDisclosure } from "@mantine/hooks";
 import { useLanguage } from "@/context/LanguageContext";
 import usePrivateRequest from "@/hooks/usePrivateRequest";
-import { Badge, Loader } from "@mantine/core";
+import { Badge, Button, Loader } from "@mantine/core";
+import { outlineIcons, solidIcons } from "@/components/icons";
+import ConfirmActionModal, { type SyncAction } from "./confirm-action-modal";
 
 type QueueStatus = {
   pending: number;
@@ -10,18 +13,51 @@ type QueueStatus = {
   completed: number;
 };
 
+const ACTIONS: SyncAction[] = [
+  {
+    key: "clear-pending",
+    label: ["Clear Pending Jobs", "مسح المهام المعلّقة"],
+    warning: [
+      "Deletes every job currently waiting to run. Nothing already synced is affected - a future product/inventory/order change will simply queue a fresh job when it happens. Use this to clear out stale jobs left over from before a configuration fix (e.g. old Sale-collection jobs from before the Smart Collection issue was fixed).",
+      "سيتم حذف كل مهمة بانتظار التشغيل حاليًا. لن يتأثر أي شيء تمت مزامنته بالفعل - سيؤدي أي تغيير مستقبلي في المنتج/المخزون/الطلب إلى جدولة مهمة جديدة عند حدوثه. استخدم هذا لمسح المهام القديمة المتبقية من قبل إصلاح الإعداد.",
+    ],
+    url: "shopify/queue/clear-pending",
+  },
+  {
+    key: "clear-failed",
+    label: ["Clear Failed Jobs", "مسح المهام الفاشلة"],
+    warning: [
+      "Permanently deletes every job currently marked failed, including their error history. Use this after confirming the underlying issue is fixed and you don't need to inspect these failures anymore - prefer 'Retry Failed Jobs' if you want them to run again instead.",
+      "سيتم حذف كل مهمة مسجلة حاليًا كفاشلة نهائيًا، بما في ذلك سجل الأخطاء الخاص بها. استخدم هذا بعد التأكد من إصلاح المشكلة الأساسية ولم تعد بحاجة لفحص هذه الإخفاقات - يفضل استخدام 'إعادة محاولة المهام الفاشلة' إذا كنت تريد تشغيلها مرة أخرى بدلاً من ذلك.",
+    ],
+    url: "shopify/queue/clear-failed",
+  },
+  {
+    key: "cancel-running",
+    label: ["Cancel Running Jobs", "إلغاء المهام قيد التشغيل"],
+    warning: [
+      "Forces every job currently marked 'processing' back to failed, freeing it up to be retried. Only useful for jobs stuck far longer than a normal sync takes (e.g. after a crash) - a job that's still genuinely running may finish and overwrite this.",
+      "سيتم إجبار كل مهمة مسجلة حاليًا كـ 'قيد المعالجة' على العودة إلى فاشلة، مما يتيح إعادة محاولتها. مفيد فقط للمهام العالقة لفترة أطول بكثير من المزامنة العادية (مثلاً بعد تعطل) - المهمة التي لا تزال قيد التشغيل فعليًا قد تكتمل وتتجاوز هذا الإجراء.",
+    ],
+    url: "shopify/queue/cancel-running",
+  },
+];
+
 /**
  * "View queue status" (explicit admin dashboard requirement) - shows how many background sync
- * jobs are waiting, currently running, failed, or recently completed on the integration service.
- * Polls on an interval (unlike the other sections here, which only refetch when `refreshKey`
- * changes) because queue depth moves on its own as the background worker processes jobs, not just
- * in response to something the admin clicked on this page.
+ * jobs are waiting, currently running, failed, or recently completed, plus explicit manual queue
+ * management actions (Clear Pending/Clear Failed/Cancel Running - never automatic, per the
+ * "Manual Queue Management" requirement). Polls on an interval (unlike most other sections here,
+ * which only refetch when `refreshKey` changes) because queue depth moves on its own as the
+ * background worker processes jobs, not just in response to something the admin clicked here.
  */
-export default function QueueStatusSection({ refreshKey }: { refreshKey: number }) {
+export default function QueueStatusSection({ refreshKey, onActionTriggered }: { refreshKey: number; onActionTriggered: () => void }) {
   const { translate } = useLanguage();
   const privateRequest = usePrivateRequest();
   const [status, setStatus] = useState<QueueStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<SyncAction | null>(null);
+  const [opened, { open, close }] = useDisclosure();
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -41,6 +77,11 @@ export default function QueueStatusSection({ refreshKey }: { refreshKey: number 
     const interval = setInterval(fetchStatus, 10000);
     return () => clearInterval(interval);
   }, [fetchStatus]);
+
+  function choose(action: SyncAction) {
+    setSelected(action);
+    open();
+  }
 
   return (
     <div className="product-details-box">
@@ -77,6 +118,28 @@ export default function QueueStatusSection({ refreshKey }: { refreshKey: number 
           </div>
         </div>
       )}
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button size="xs" variant="light" color="gray" leftSection={<outlineIcons.ExclamationCircle size={16} />} onClick={() => choose(ACTIONS[0]!)}>
+          {translate(...ACTIONS[0]!.label)}
+        </Button>
+        <Button size="xs" variant="light" color="red" leftSection={<outlineIcons.ExclamationCircle size={16} />} onClick={() => choose(ACTIONS[1]!)}>
+          {translate(...ACTIONS[1]!.label)}
+        </Button>
+        <Button size="xs" variant="light" color="orange" leftSection={<solidIcons.ExclamationCircle size={16} />} onClick={() => choose(ACTIONS[2]!)}>
+          {translate(...ACTIONS[2]!.label)}
+        </Button>
+      </div>
+
+      <ConfirmActionModal
+        action={selected}
+        opened={opened}
+        onClose={close}
+        onDone={() => {
+          onActionTriggered();
+          fetchStatus();
+        }}
+      />
     </div>
   );
 }
