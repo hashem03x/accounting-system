@@ -64,7 +64,7 @@ export default function ShopifySyncPage() {
             </div>
             <CollectionSyncSection onActionTriggered={bumpRefresh} />
             <MappingSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
-            <FailedSyncsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
+            {/* <FailedSyncsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} /> */}
             <LogsSection refreshKey={refreshKey} />
           </>
         )}
