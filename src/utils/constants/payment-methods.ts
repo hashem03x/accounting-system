@@ -76,6 +76,7 @@ export const paymentMethodsArray = Object.values(paymentMethods);
 // ================ Helpers ================
 
 export function getPaymentMethodLabel(method: PaymentMethod, language: Language) {
+  console.log(method)
   return translate(language, paymentMethods[method].label.en, paymentMethods[method].label.ar);
 }
 
