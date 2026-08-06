@@ -10,8 +10,7 @@ import ProductSyncSection from "./_components/product-sync-section";
 import InventorySyncSection from "./_components/inventory-sync-section";
 import CollectionSyncSection from "./_components/collection-sync-section";
 import MappingSection from "./_components/mapping-section";
-import FailedSyncsSection from "./_components/failed-syncs-section";
-import LogsSection from "./_components/logs-section";
+
 
 const DEV_MODE_STORAGE_KEY = "shopify-sync-dev-mode";
 
@@ -65,7 +64,7 @@ export default function ShopifySyncPage() {
             <CollectionSyncSection onActionTriggered={bumpRefresh} />
             <MappingSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
             {/* <FailedSyncsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} /> */}
-            <LogsSection refreshKey={refreshKey} />
+            {/* <LogsSection refreshKey={refreshKey} /> */}
           </>
         )}
       </div>
