@@ -4,7 +4,7 @@ import { outlineIcons } from "@/components/icons";
 import Modal from "@/components/ui/modal";
 import ErrorAlert from "@/components/ui/error-alert";
 import { Button, NumberInput, Select } from "@mantine/core";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
 import { paymentMethodsArray } from "@/utils/constants/payment-methods";
@@ -22,7 +22,9 @@ export default function TransferMoneyModal({
   setPaginatedPayments: React.Dispatch<React.SetStateAction<PaginatedData<Payment>>>;
 }) {
   const { translate, translations, language } = useLanguage();
-  const { data: warehouses } = useWarehouses();
+
+  const { data: warehouses = [] } = useWarehouses();
+
   const { updateWarehouseBalanceById } = useWarehouseHelpers();
 
   const [sourceWarehouseId, setSourceWarehouseId] = useState("");
@@ -31,7 +33,31 @@ export default function TransferMoneyModal({
   const [withdrawMethod, setWithdrawMethod] = useState<PaymentMethod | null>(null);
   const [depositMethod, setDepositMethod] = useState<PaymentMethod | null>(null);
 
-  const { privateRequest, loading, setLoading, error, setError } = useDataHandler({ initialData: null });
+  const { privateRequest, loading, setLoading, error, setError } = useDataHandler({
+    initialData: null,
+  });
+
+  const warehouseOptions = useMemo(
+    () =>
+      (warehouses ?? [])
+        .filter((warehouse) => warehouse && typeof warehouse === "object" && warehouse._id && warehouse.name)
+        .map((warehouse) => ({
+          value: warehouse._id,
+          label: String(warehouse.name),
+        })),
+    [warehouses],
+  );
+
+  const paymentMethodOptions = useMemo(
+    () =>
+      (paymentMethodsArray ?? [])
+        .filter((method) => method && typeof method === "object" && method.value && method.label)
+        .map((method) => ({
+          value: method.value,
+          label: translate(method.label?.en ?? "", method.label?.ar ?? ""),
+        })),
+    [translate],
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,9 +76,9 @@ export default function TransferMoneyModal({
         },
       });
 
-      // Update the data
       setPaginatedPayments((prev) => {
         if (!prev) return prev;
+
         return {
           ...prev,
           data: [res.data.paymentIn, res.data.paymentOut, ...prev.data],
@@ -68,6 +94,7 @@ export default function TransferMoneyModal({
 
   function handleClose() {
     close();
+
     setTimeout(() => {
       setSourceWarehouseId("");
       setTargetWarehouseId("");
@@ -83,29 +110,29 @@ export default function TransferMoneyModal({
   return (
     <Modal opened={opened} onClose={handleClose} title={title} size="lg">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Warehouses */}
         <div className="flex flex-col gap-2 md:flex-row md:items-end">
           <Select
             label={translate("From Warehouse", "من المخزن")}
             placeholder={translate("Select Warehouse", "اختر المخزن")}
             value={sourceWarehouseId}
             onChange={(value) => setSourceWarehouseId(value || "")}
-            data={warehouses.map((warehouse) => ({ value: warehouse._id, label: warehouse.name }))}
+            data={warehouseOptions}
             required
             flex={1}
           />
+
           <Select
             label={translate("To Warehouse", "إلى المخزن")}
             placeholder={translate("Select Warehouse", "اختر المخزن")}
             value={targetWarehouseId}
             onChange={(value) => setTargetWarehouseId(value || "")}
-            data={warehouses.map((warehouse) => ({ value: warehouse._id, label: warehouse.name }))}
+            data={warehouseOptions}
             required
             flex={1}
           />
 
-          {/* Swap Warehouses */}
           <Button
+            type="button"
             title={translate("Swap Warehouses", "تبديل المخازن")}
             onClick={() => {
               setSourceWarehouseId(targetWarehouseId);
@@ -121,7 +148,6 @@ export default function TransferMoneyModal({
           </Button>
         </div>
 
-        {/* Amount */}
         <NumberInput
           value={amount}
           onChange={(value) => setAmount(value)}
@@ -133,16 +159,12 @@ export default function TransferMoneyModal({
           required
         />
 
-        {/* Payment Methods */}
         <div className="flex flex-col gap-2 md:flex-row">
           <Select
             clearable
             value={withdrawMethod}
             onChange={(value) => setWithdrawMethod(value as PaymentMethod | null)}
-            data={paymentMethodsArray.map((method) => ({
-              value: method.value,
-              label: translate(method.label.en, method.label.ar),
-            }))}
+            data={paymentMethodOptions}
             label={translate("Withdraw Method", "طريقة السحب")}
             placeholder={translate("Select withdraw method", "اختر طريقة السحب")}
             required
@@ -153,10 +175,7 @@ export default function TransferMoneyModal({
             clearable
             value={depositMethod}
             onChange={(value) => setDepositMethod(value as PaymentMethod | null)}
-            data={paymentMethodsArray.map((method) => ({
-              value: method.value,
-              label: translate(method.label.en, method.label.ar),
-            }))}
+            data={paymentMethodOptions}
             label={translate("Deposit Method", "طريقة الإيداع")}
             placeholder={translate("Select deposit method", "اختر طريقة الإيداع")}
             required
@@ -165,9 +184,10 @@ export default function TransferMoneyModal({
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleClose} variant="light" color="dark" fullWidth>
+          <Button type="button" onClick={handleClose} variant="light" color="dark" fullWidth>
             {translations.cancel}
           </Button>
+
           <Button
             type="submit"
             loading={loading}

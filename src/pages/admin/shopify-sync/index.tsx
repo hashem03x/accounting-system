@@ -3,6 +3,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import IntegrationSummary from "./_components/integration-summary";
+import SyncStatisticsSection from "./_components/sync-statistics-section";
 import ConnectionStatus from "./_components/connection-status";
 import StoreInitSection from "./_components/store-init-section";
 import QueueStatusSection from "./_components/queue-status-section";
@@ -51,6 +52,7 @@ export default function ShopifySyncPage() {
     >
       <div className="flex flex-col gap-4">
         <IntegrationSummary refreshKey={refreshKey} onActionTriggered={bumpRefresh} devMode={devMode} onDevModeChange={changeDevMode} />
+        <SyncStatisticsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
 
         {devMode && (
           <>
