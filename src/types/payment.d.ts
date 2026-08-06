@@ -7,6 +7,7 @@ export type PaymentMethod =
   | "instapay"
   | "fawry"
   | "Banque Misr Deposit"
+  | "shopify-payments"
   | "main-bank";
 
 // export type CardPaymentMethod = "card";

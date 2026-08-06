@@ -67,6 +67,14 @@ const paymentMethods: LocalizedEntity<PaymentMethod> = {
       ar: "Fawry",
     },
   },
+  // Adding shopify payments method
+  "shopify-payments": {
+    value: "shopify-payments",
+    label: {
+      en: "Shopify Payments",
+      ar: "Shopify Payments",
+    },
+  },
 };
 
 export default paymentMethods;
