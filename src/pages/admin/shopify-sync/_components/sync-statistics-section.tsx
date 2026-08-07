@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDisclosure } from "@mantine/hooks";
 import { useLanguage } from "@/context/LanguageContext";
 import usePrivateRequest from "@/hooks/usePrivateRequest";
@@ -10,6 +10,10 @@ type SyncStatistics = {
   totalProducts: number;
   syncedProducts: number;
   unsyncedProducts: number;
+  // Products whose most recent sync attempt errored (mapping.service.js#getSyncStatistics ->
+  // ShopifyProductMapping.syncStatus === 'failed'). Overlaps with unsyncedProducts/syncedProducts
+  // rather than being a subset of either - a product can fail *after* a prior successful sync.
+  failedProducts: number;
   syncPercentage: number;
 };
 
@@ -42,16 +46,22 @@ export default function SyncStatisticsSection({ refreshKey, onActionTriggered }:
   const [stats, setStats] = useState<SyncStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [opened, { open, close }] = useDisclosure();
+  // Guards against the 10s poll interval and a refreshKey-triggered refetch racing each other -
+  // an in-flight request that resolves after a newer one must not clobber the newer result.
+  const requestId = useRef(0);
 
   const fetchStatistics = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     try {
       const response = await privateRequest({ url: "shopify/statistics", language });
+      if (id !== requestId.current) return;
       setStats(response.data);
     } catch {
+      if (id !== requestId.current) return;
       setStats(null);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -71,7 +81,7 @@ export default function SyncStatisticsSection({ refreshKey, onActionTriggered }:
 
       {stats && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-gray-500">{translate("Total Products", "إجمالي المنتجات")}</span>
               <span className="text-sm font-medium">{stats.totalProducts.toLocaleString(language)}</span>
@@ -86,6 +96,12 @@ export default function SyncStatisticsSection({ refreshKey, onActionTriggered }:
               <span className="text-xs text-gray-500">{translate("Unsynced Products", "المنتجات غير المتزامنة")}</span>
               <Badge color={stats.unsyncedProducts > 0 ? "orange" : "gray"} size="lg">
                 {stats.unsyncedProducts.toLocaleString(language)}
+              </Badge>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">{translate("Failed (needs attention)", "فشل (يتطلب الانتباه)")}</span>
+              <Badge color={stats.failedProducts > 0 ? "red" : "gray"} size="lg">
+                {stats.failedProducts.toLocaleString(language)}
               </Badge>
             </div>
           </div>
