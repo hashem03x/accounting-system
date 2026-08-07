@@ -50,7 +50,7 @@ export default function ShopifySyncPage() {
         ),
       }}
     >
-      {/* <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <IntegrationSummary refreshKey={refreshKey} onActionTriggered={bumpRefresh} devMode={devMode} onDevModeChange={changeDevMode} />
         <SyncStatisticsSection refreshKey={refreshKey} onActionTriggered={bumpRefresh} />
 
@@ -69,7 +69,7 @@ export default function ShopifySyncPage() {
             {/* <LogsSection refreshKey={refreshKey} /> */}
           </>
         )}
-      </div> */}
+      </div>
     </AdminLayoutBox>
   );
 }
