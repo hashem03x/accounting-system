@@ -21,6 +21,10 @@ export type Product = {
   ratingsAverage?: number;
   createdAt: Date;
   updatedAt: Date;
+  /** Real Shopify integration mapping state (see mapping.service.js#classifySyncStatus on the
+   * backend) - only present on responses that attach it (the admin Products list), absent
+   * elsewhere (e.g. the public storefront). Never derive this on the frontend. */
+  shopifySync?: "synced" | "unsynced" | "failed";
 };
 
 // ============================================================================

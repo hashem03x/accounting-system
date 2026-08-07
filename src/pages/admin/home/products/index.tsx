@@ -64,6 +64,7 @@ export default function Products() {
     searchParams.get("tags")?.split(",").filter(Boolean) || [],
   );
   const [distinctTags, setDistinctTags] = useState<string[]>([]);
+  const [shopifySyncFilter, setShopifySyncFilter] = useState(searchParams.get("shopifySyncStatus") || "");
 
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -77,6 +78,7 @@ export default function Products() {
     ...(mainCategoryFilter ? { mainCategoryId: mainCategoryFilter } : {}),
     ...(subcategoryFilter ? { subCategories: subcategoryFilter } : {}),
     ...(tagsFilterParam ? { tags: tagsFilterParam } : {}),
+    ...(shopifySyncFilter ? { shopifySyncStatus: shopifySyncFilter } : {}),
   };
 
   // Track the previous filters and check if they have changed to reset the active page to 1.
@@ -86,6 +88,7 @@ export default function Products() {
     mainCategoryFilter,
     subcategoryFilter,
     tagsFilterParam,
+    shopifySyncFilter,
   });
 
   const {
@@ -127,7 +130,7 @@ export default function Products() {
     setSearchParams(params, { replace: true });
 
     // If the filters have changed, reset the active page to 1.
-    const newFilters = { debouncedKeyword, seasonFilter, mainCategoryFilter, subcategoryFilter, tagsFilterParam };
+    const newFilters = { debouncedKeyword, seasonFilter, mainCategoryFilter, subcategoryFilter, tagsFilterParam, shopifySyncFilter };
     if (filtersChanged(newFilters)) {
       updatePreviousFilters(newFilters);
       if (activePage !== 1) {
@@ -140,7 +143,7 @@ export default function Products() {
 
     const cancelRequest = handleLoadProducts(); // This will send the request and return the function to cancel it.
     return cancelRequest; // This will be called when the component unmounts.
-  }, [activePage, debouncedKeyword, seasonFilter, mainCategoryFilter, subcategoryFilter, tagsFilterParam]);
+  }, [activePage, debouncedKeyword, seasonFilter, mainCategoryFilter, subcategoryFilter, tagsFilterParam, shopifySyncFilter]);
 
   // Distinct tags across the catalog, fetched once for the tags filter's autocomplete suggestions.
   useEffect(() => {
@@ -217,7 +220,7 @@ export default function Products() {
         </div>
 
         {/* Clear All Filters */}
-        {(debouncedKeyword || seasonFilter || mainCategoryFilter || subcategoryFilter || tagsFilter.length > 0) && (
+        {(debouncedKeyword || seasonFilter || mainCategoryFilter || subcategoryFilter || tagsFilter.length > 0 || shopifySyncFilter) && (
           <Button
             color="red"
             variant="light"
@@ -227,6 +230,7 @@ export default function Products() {
               setMainCategoryFilter("");
               setSubcategoryFilter("");
               setTagsFilter([]);
+              setShopifySyncFilter("");
             }}
             title={translate("Clear All Filters", "مسح جميع الفلاتر")}
           >
@@ -245,7 +249,7 @@ export default function Products() {
           </Button>
 
           {/* Highlight the filter button if any filter is active */}
-          {seasonFilter || mainCategoryFilter || subcategoryFilter || tagsFilter.length > 0 ? (
+          {seasonFilter || mainCategoryFilter || subcategoryFilter || tagsFilter.length > 0 || shopifySyncFilter ? (
             <span
               className={`absolute -top-[6px] ${translate("-right-[6px]", "-left-[6px]")} h-[15px] w-[15px] rounded-full bg-blue-500`}
             ></span>
@@ -319,6 +323,21 @@ export default function Products() {
             className="min-w-[220px] flex-1 whitespace-normal"
             rightSection={tagsFilter.length > 0 ? <solidIcons.Check color="green" size={12} /> : null}
           />
+
+          {/* Shopify Sync - filters against the real backend mapping state, not frontend guessing */}
+          <Select
+            value={shopifySyncFilter}
+            onChange={(value) => setShopifySyncFilter(value as string)}
+            label={translate("Shopify Sync", "مزامنة Shopify")}
+            data={[
+              { value: "", label: translate(noFilterLabel.en, noFilterLabel.ar) },
+              { value: "synced", label: translate("Synced", "متزامن") },
+              { value: "unsynced", label: translate("Not Synced", "غير متزامن") },
+              { value: "failed", label: translate("Failed", "فشل") },
+            ]}
+            allowDeselect={false}
+            rightSection={shopifySyncFilter ? <solidIcons.Check color="green" size={12} /> : null}
+          />
         </div>
       )}
 
@@ -364,6 +383,7 @@ export default function Products() {
                       />
                     </Table.Th>
                     <Table.Th>{translate("Title", "العنوان")}</Table.Th>
+                    <Table.Th>{translate("Shopify Sync", "مزامنة Shopify")}</Table.Th>
                     <Table.Th>{translate("Price", "السعر")}</Table.Th>
                     <Table.Th>{translate("After Discount", "بعد الخصم")}</Table.Th>
                     {renderIfAdmin(<Table.Th>{translate("Cost", "التكلفة")}</Table.Th>)}
@@ -407,6 +427,15 @@ export default function Products() {
                         </Table.Td>
                         <Table.Td className="font-semibold text-gray-800">
                           {translate(product.title.en, product.title.ar)}
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge color={product.shopifySync === "synced" ? "teal" : product.shopifySync === "failed" ? "red" : "gray"}>
+                            {product.shopifySync === "synced"
+                              ? translate("Synced", "متزامن")
+                              : product.shopifySync === "failed"
+                                ? translate("Failed", "فشل")
+                                : translate("Not Synced", "غير متزامن")}
+                          </Badge>
                         </Table.Td>
                         <Table.Td>
                           {product.price.toFixed(2)} {translations.currency}
