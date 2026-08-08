@@ -25,6 +25,13 @@ type ShopifySyncStatus = {
   lastSyncedAt: string | null;
   lastSyncAttemptAt: string | null;
   lastSyncError: string | null;
+  // "complete"/"partial"/"none" - additive detail on top of lastSyncStatus (see
+  // mapping.service.js#getShopifySyncStatus); this app's business rule doesn't require every
+  // variant mapped for the product itself to count as synced, so this is informational only.
+  variantCoverage?: "complete" | "partial" | "none";
+  // Only present when the status was fetched with verify:true - a live Shopify API check that the
+  // mapped product still actually exists there, not just that a local mapping row exists.
+  existsOnShopify?: boolean | null;
   variants: VariantSyncStatus[];
 };
 
@@ -42,23 +49,48 @@ export default function ShopifySyncInformation() {
 
   const [status, setStatus] = useState<ShopifySyncStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [actionLoading, setActionLoading] = useState<"sync" | "inventory" | "force" | null>(null);
   const [forceModalOpened, { open: openForceModal, close: closeForceModal }] = useDisclosure();
 
-  const fetchStatus = useCallback(async () => {
-    if (!currentProduct) return;
-    setStatusLoading(true);
-    try {
-      const response = await privateRequest({ url: `shopify/products/${currentProduct._id}/status`, language });
-      setStatus(response.data);
-    } catch {
-      // Sync status is supplementary, not required for the page to function - fail silently and
-      // let the admin retry via the Refresh button.
-    } finally {
-      setStatusLoading(false);
-    }
+  const fetchStatus = useCallback(
+    async (verify = false) => {
+      if (!currentProduct) return;
+      (verify ? setVerifying : setStatusLoading)(true);
+      try {
+        const response = await privateRequest({
+          url: `shopify/products/${currentProduct._id}/status${verify ? "?verify=true" : ""}`,
+          language,
+        });
+        setStatus(response.data);
+        if (verify) {
+          if (response.data.existsOnShopify === false) {
+            notifyError({
+              language,
+              title: translate("Not found on Shopify", "غير موجود على Shopify"),
+              message: translate(
+                "The mapped Shopify product no longer exists. Use “Find Missing Variants” or re-sync to fix this.",
+                "المنتج المرتبط في Shopify لم يعد موجودًا. استخدم “البحث عن المتغيرات المفقودة” أو أعد المزامنة لإصلاح ذلك.",
+              ),
+            });
+          } else if (response.data.existsOnShopify === true) {
+            notifySuccess({
+              language,
+              title: translate("Verified", "تم التحقق"),
+              message: translate("Confirmed with Shopify - the product exists there.", "تم التأكيد من Shopify - المنتج موجود هناك."),
+            });
+          }
+        }
+      } catch {
+        // Sync status is supplementary, not required for the page to function - fail silently and
+        // let the admin retry via the Refresh/Verify button.
+      } finally {
+        (verify ? setVerifying : setStatusLoading)(false);
+      }
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProduct?._id]);
+    [currentProduct?._id],
+  );
 
   useEffect(() => {
     fetchStatus();
@@ -130,9 +162,26 @@ export default function ShopifySyncInformation() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3>{translate("Shopify Synchronization", "مزامنة Shopify")}</h3>
         <div className="flex items-center gap-2">
-          {statusLoading && <Loader size="xs" />}
+          {(statusLoading || verifying) && <Loader size="xs" />}
+          <Tooltip
+            label={translate(
+              "Confirm with Shopify that the mapped product still actually exists there",
+              "تأكد من Shopify أن المنتج المرتبط لا يزال موجودًا هناك بالفعل",
+            )}
+          >
+            <Button
+              variant="subtle"
+              color="indigo"
+              size="xs"
+              px="xs"
+              onClick={() => fetchStatus(true)}
+              disabled={statusLoading || verifying || !status?.shopifyProductId}
+            >
+              {translate("Verify with Shopify", "التحقق من Shopify")}
+            </Button>
+          </Tooltip>
           <Tooltip label={translate("Refresh status", "تحديث الحالة")}>
-            <Button variant="subtle" color="dark" size="xs" px="xs" onClick={fetchStatus} disabled={statusLoading}>
+            <Button variant="subtle" color="dark" size="xs" px="xs" onClick={() => fetchStatus()} disabled={statusLoading || verifying}>
               <solidIcons.ArrowPath size={16} />
             </Button>
           </Tooltip>
