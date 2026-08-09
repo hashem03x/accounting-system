@@ -1,4 +1,4 @@
-import { isWebsiteOrder } from "@/utils/constants/order-sources";
+import { isWebsiteOrder, isShopifyOrder } from "@/utils/constants/order-sources";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import HeaderSection from "./_components/header-section";
 import CustomerWarehouseSection from "./_components/customer-warehouse-section";
@@ -20,7 +20,7 @@ export default function Overview() {
       {isWebsiteOrder(order.orderSource) && (
         <>
           <hr />
-          <WebsiteDetailsSection />
+          <WebsiteDetailsSection isFromWebsite={isWebsiteOrder(order.orderSource)} isFromShopify={isShopifyOrder(order.orderSource)} />
         </>
       )}
     </AdminLayoutBox>

@@ -9,7 +9,13 @@ import { useDisclosure } from "@mantine/hooks";
 import ConfirmCodModal from "./_components/confirm-cod-modal";
 import CancelOrderModal from "./_components/cancel-order-modal";
 
-export default function WebsiteDetailsSection() {
+export default function WebsiteDetailsSection({
+  isFromWebsite,
+  isFromShopify,
+}: {
+  isFromWebsite: boolean;
+  isFromShopify: boolean;
+}) {
   const { translate } = useLanguage();
   const { order } = useOrder();
 
@@ -20,7 +26,9 @@ export default function WebsiteDetailsSection() {
     <div className="rounded-lg border">
       <span className="flex items-center gap-2.5 border-b bg-gray-100 px-4 py-3 font-semibold text-gray-800">
         <solidIcons.Circle className="text-blue-500" size={15} />
-        {translate("This order was placed through the website", "تم تقديم هذا الطلب من خلال الموقع الإلكتروني")}
+        {isFromWebsite &&
+          translate("This order was placed through the website", "تم تقديم هذا الطلب من خلال الموقع الإلكتروني")}{" "}
+        {isFromShopify && translate("This order was placed through Shopify", "تم تقديم هذا الطلب من خلال Shopify")}
       </span>
 
       <div className="flex flex-col gap-2 p-4">
