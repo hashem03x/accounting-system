@@ -25,6 +25,11 @@ export type Product = {
    * backend) - only present on responses that attach it (the admin Products list), absent
    * elsewhere (e.g. the public storefront). Never derive this on the frontend. */
   shopifySync?: "synced" | "unsynced" | "failed";
+  /** The mapped Shopify product's id, or null when unsynced - see mapping.service.js#getSyncDetailsForProducts.
+   * Present alongside `shopifySync` on the same responses. */
+  shopifyProductId?: string | null;
+  /** When the mapping was last successfully synced, or null when unsynced/never synced. */
+  shopifySyncedAt?: Date | null;
 };
 
 // ============================================================================
