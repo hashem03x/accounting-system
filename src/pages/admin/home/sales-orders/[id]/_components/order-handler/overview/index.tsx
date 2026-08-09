@@ -17,7 +17,7 @@ export default function Overview() {
       <hr />
       <OrderItemsSection />
 
-      {isWebsiteOrder(order.orderSource) && (
+      {(isWebsiteOrder(order.orderSource) || isShopifyOrder(order.orderSource)) && (
         <>
           <hr />
           <WebsiteDetailsSection isFromWebsite={isWebsiteOrder(order.orderSource)} isFromShopify={isShopifyOrder(order.orderSource)} />
