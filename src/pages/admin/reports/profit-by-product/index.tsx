@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMainCategories } from "@/context/MainCategoriesContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -8,8 +8,9 @@ import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import { Season } from "@/types/product";
 import { getSeasonLabel } from "@/utils/constants/seasons";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table, Group, Stack } from "@mantine/core";
+import { Button, Select, Table, Group, Stack, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -122,6 +123,21 @@ export default function ProfitByProductReport() {
     initialLoading: true
   });
 
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. Searches product name, category, and subcategory.
+  const [search, setSearch] = useState("");
+  const filteredRows = useMemo(() => {
+    return data.data.filter((item) => matchesSearchTerm(search, [item.productName, item.category, item.subcategory]));
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(
+    search || startDate || endDate || (season && season !== "all") || mainCategory || subcategory || warehouse || online,
+  );
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   function handleLoadData() {
     const controller = new AbortController();
     const canceled = { current: false };
@@ -211,6 +227,23 @@ export default function ProfitByProductReport() {
       }}
     >
       <Stack gap="lg">
+        {/* Local search (product name, category, or subcategory - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Product name, category, or subcategory...", "اسم المنتج، القسم، أو القسم الفرعي...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Filters */}
         <Group grow>
           <DateTimePicker
@@ -331,6 +364,8 @@ export default function ProfitByProductReport() {
           />
         ) : !data?.results ? (
           <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+        ) : filteredRows.length === 0 ? (
+          <EmptySection useDefaultImg message={translate("No products match your search", "لا توجد منتجات مطابقة لبحثك")} />
         ) : (
           <div className="overflow-x-auto">
             <Table className="text-nowrap" verticalSpacing="xs" withColumnBorders>
@@ -349,7 +384,7 @@ export default function ProfitByProductReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.data.map((item: ProductProfitData) => (
+                {filteredRows.map((item: ProductProfitData) => (
                   <Table.Tr key={item.productId} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">{item.productName}</Table.Td>
                     <Table.Td>{item.category}</Table.Td>
@@ -376,16 +411,16 @@ export default function ProfitByProductReport() {
                 <Table.Tr className="font-semibold text-gray-800" style={{ backgroundColor: "#f3f4f6" }}>
                   <Table.Td colSpan={7}>{translate("Total", "المجموع")}</Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {data.data.reduce((sum, item) => sum + item.totalSales, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.totalSales, 0).toFixed(2)}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {data.data.reduce((sum, item) => sum + item.costOfSales, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.costOfSales, 0).toFixed(2)}
                   </Table.Td>
-                  <Table.Td style={{ 
+                  <Table.Td style={{
                     textAlign: "right",
-                    color: data.data.reduce((sum, item) => sum + item.grossProfit, 0) < 0 ? "#ef4444" : "#22c55e"
+                    color: filteredRows.reduce((sum, item) => sum + item.grossProfit, 0) < 0 ? "#ef4444" : "#22c55e"
                   }}>
-                    {data.data.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)}
                   </Table.Td>
                 </Table.Tr>
               </Table.Tbody>

@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table, Group, Stack, Text } from "@mantine/core";
+import { Button, Select, Table, Group, Stack, Text, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -200,6 +201,21 @@ export default function IncomeStatementReport() {
   const [downloading, setDownloading] = useState(false);
 
 
+  // Local, frontend-only search - the only per-row list in this statement is the operating
+  // expenses breakdown by category, so search filters that. Searches category name.
+  const [search, setSearch] = useState("");
+  const filteredExpenseCategories = useMemo(() => {
+    return Object.entries(data.data.expenses.current.byCategory).filter(([category]) =>
+      matchesSearchTerm(search, [category, translate(category, category)]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouseId);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   const renderComparativeRow = (label: string, values: ComparativeValue, isTotal: boolean = false) => (
     <Table.Tr className={isTotal ? "font-semibold bg-gray-100" : ""}>
       <Table.Td>{translate(label, label)}</Table.Td>
@@ -238,6 +254,23 @@ export default function IncomeStatementReport() {
       }}
     >
       <Stack gap="lg">
+        {/* Local search (filters the operating expenses category breakdown client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Expense category...", "فئة المصروف...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Filters */}
         <Group grow>
           <DateTimePicker
@@ -311,19 +344,27 @@ export default function IncomeStatementReport() {
                     {translate("Operating Expenses", "مصروفات التشغيل")}
                   </Table.Td>
                 </Table.Tr>
-                {Object.entries(data.data.expenses.current.byCategory).map(([category, amount]) => (
-                  <Table.Tr key={category}>
-                    <Table.Td className="pl-8">
-                      {translate(category, category)}
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
-                      {amount.toFixed(2)}
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
-                      {(data.data.expenses.previous.byCategory[category] || 0).toFixed(2)}
+                {filteredExpenseCategories.length === 0 && search ? (
+                  <Table.Tr>
+                    <Table.Td colSpan={3} className="pl-8 text-gray-500">
+                      {translate("No expense categories match your search", "لا توجد فئات مصروفات مطابقة لبحثك")}
                     </Table.Td>
                   </Table.Tr>
-                ))}
+                ) : (
+                  filteredExpenseCategories.map(([category, amount]) => (
+                    <Table.Tr key={category}>
+                      <Table.Td className="pl-8">
+                        {translate(category, category)}
+                      </Table.Td>
+                      <Table.Td style={{ textAlign: "right" }}>
+                        {amount.toFixed(2)}
+                      </Table.Td>
+                      <Table.Td style={{ textAlign: "right" }}>
+                        {(data.data.expenses.previous.byCategory[category] || 0).toFixed(2)}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))
+                )}
                 <Table.Tr className="font-semibold bg-gray-100">
                   <Table.Td>{translate("Total Expenses", "إجمالي المصروفات")}</Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>

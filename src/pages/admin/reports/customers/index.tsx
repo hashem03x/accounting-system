@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { SortOrder } from "@/types/global";
 import { Customer, CustomerType } from "@/types/customer";
 import { sortOrdersArray } from "@/utils/constants/sort-order";
 import { customerTypesArray, getCustomerTypeLabel } from "@/utils/constants/customer-types";
 import { stringifyCustomerAddress } from "@/utils/helpers/stringify-address";
-import { Button, Select, Table } from "@mantine/core";
+import { Button, Select, Table, TextInput } from "@mantine/core";
 import { solidIcons } from "@/components/icons";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
@@ -55,6 +56,19 @@ export default function CustomersReport() {
     initialData: [],
     initialLoading: true,
   });
+
+  // Local, frontend-only search - filters the already-fetched report data in the browser, no
+  // extra request per keystroke. Searches name/phone/email/address.
+  const [search, setSearch] = useState("");
+  const filteredData = useMemo(() => {
+    return data.filter((customer) => matchesSearchTerm(search, [customer.name, customer.phone, customer.email, stringifyCustomerAddress(customer)]));
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || type);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   function handleLoadData() {
     const controller = new AbortController();
@@ -118,46 +132,65 @@ export default function CustomersReport() {
       }}
     >
       {/* Filters */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* Type */}
-        <Select
-          clearable
-          label={translate("Type", "النوع")}
-          placeholder={translate("Select Type", "اختر النوع")}
-          value={type}
-          onChange={(value) => setType((value || "") as TypeOption)}
-          data={customerTypesArray.map((type) => ({ value: type.value, label: translate(type.label.en, type.label.ar) }))}
-        />
-
-        {/* Sort By */}
-        <Select
-          clearable
-          label={translate("Sort By", "ترتيب حسب")}
-          placeholder={translate("Select Sort By", "اختر الترتيب حسب")}
-          value={sortBy}
-          onChange={(value) => setSortBy((value || "") as SortByOption)}
-          data={[
-            { value: "balance", label: translate("Balance", "الرصيد") },
-            { value: "totalOrders", label: translate("Total Orders", "إجمالي الطلبات") },
-            { value: "totalOrdersAmount", label: translate("Total Orders Amount", "إجمالي مبالغ الطلبات") },
-            { value: "totalPaidAmount", label: translate("Total Paid Amount", "إجمالي المبالغ المدفوعة") },
-          ]}
-        />
-
-        {/* Sort Order */}
-        {sortBy && (
-          <Select
-            allowDeselect={false}
-            label={translate("Sort Order", "طريقة الترتيب")}
-            placeholder={translate("Select Sort Order", "اختر طريقة الترتيب")}
-            value={sortOrder}
-            onChange={(value) => setSortOrder((value || "desc") as SortOrder)}
-            data={sortOrdersArray.map((option) => ({
-              value: option.value,
-              label: translate(option.label.en, option.label.ar),
-            }))}
+      <div className="flex flex-col gap-4">
+        {/* Local search (name, phone, email, or address - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Name, phone, email, or address...", "الاسم، الهاتف، البريد الإلكتروني، أو العنوان...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
           />
-        )}
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {/* Type */}
+          <Select
+            clearable
+            label={translate("Type", "النوع")}
+            placeholder={translate("Select Type", "اختر النوع")}
+            value={type}
+            onChange={(value) => setType((value || "") as TypeOption)}
+            data={customerTypesArray.map((type) => ({ value: type.value, label: translate(type.label.en, type.label.ar) }))}
+          />
+
+          {/* Sort By */}
+          <Select
+            clearable
+            label={translate("Sort By", "ترتيب حسب")}
+            placeholder={translate("Select Sort By", "اختر الترتيب حسب")}
+            value={sortBy}
+            onChange={(value) => setSortBy((value || "") as SortByOption)}
+            data={[
+              { value: "balance", label: translate("Balance", "الرصيد") },
+              { value: "totalOrders", label: translate("Total Orders", "إجمالي الطلبات") },
+              { value: "totalOrdersAmount", label: translate("Total Orders Amount", "إجمالي مبالغ الطلبات") },
+              { value: "totalPaidAmount", label: translate("Total Paid Amount", "إجمالي المبالغ المدفوعة") },
+            ]}
+          />
+
+          {/* Sort Order */}
+          {sortBy && (
+            <Select
+              allowDeselect={false}
+              label={translate("Sort Order", "طريقة الترتيب")}
+              placeholder={translate("Select Sort Order", "اختر طريقة الترتيب")}
+              value={sortOrder}
+              onChange={(value) => setSortOrder((value || "desc") as SortOrder)}
+              data={sortOrdersArray.map((option) => ({
+                value: option.value,
+                label: translate(option.label.en, option.label.ar),
+              }))}
+            />
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -171,6 +204,8 @@ export default function CustomersReport() {
         />
       ) : data.length === 0 ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : filteredData.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No customers match your search", "لا يوجد عملاء مطابقون لبحثك")} />
       ) : (
         <>
           {/* Table */}
@@ -190,7 +225,7 @@ export default function CustomersReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.map((customer) => (
+                {filteredData.map((customer) => (
                   <Table.Tr key={customer._id} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">{customer.name}</Table.Td>
                     <Table.Td>{customer.phone || ""}</Table.Td>
@@ -217,14 +252,14 @@ export default function CustomersReport() {
                   <Table.Td />
                   <Table.Td />
                   <Table.Td>
-                    {data.reduce((acc, customer) => acc + customer.balance, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, customer) => acc + customer.balance, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
-                  <Table.Td>{data.reduce((acc, customer) => acc + customer.totalOrders, 0)}</Table.Td>
+                  <Table.Td>{filteredData.reduce((acc, customer) => acc + customer.totalOrders, 0)}</Table.Td>
                   <Table.Td>
-                    {data.reduce((acc, customer) => acc + customer.totalOrdersAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, customer) => acc + customer.totalOrdersAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td>
-                    {data.reduce((acc, customer) => acc + customer.totalPaidAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, customer) => acc + customer.totalPaidAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td />
                 </Table.Tr>

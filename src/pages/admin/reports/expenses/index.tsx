@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
@@ -6,10 +6,11 @@ import useDataHandler from "@/hooks/useDataHandler";
 import useWarehouseHelpers from "@/hooks/useWarehouseHelpers";
 import { useWarehouses } from "@/context/WarehousesContext";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { formatDate } from "@/utils/helpers/date-formaters";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table, Text } from "@mantine/core";
+import { Button, Select, Table, Text, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -135,6 +136,53 @@ export default function ExpensesReport() {
     }
   };
 
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. Searches description, category, payment method/status,
+  // warehouse, and creator.
+  const [search, setSearch] = useState("");
+  const filteredExpenses = useMemo(() => {
+    return data.expenses.filter((expense) =>
+      matchesSearchTerm(search, [
+        expense.description,
+        getExpenseCategoryLabel(expense.expenseCategory),
+        expense.payment.method,
+        expense.payment.status,
+        getWarehouseNameById(expense.warehouse._id),
+        expense.creator?.name,
+      ]),
+    );
+  }, [data, search]);
+
+  const filteredSummary = useMemo(() => {
+    if (!search) return data.summary;
+
+    const totalAmount = filteredExpenses.reduce((acc, expense) => acc + expense.payment.amount, 0);
+    const byCategoryMap = new Map<string, { count: number; amount: number }>();
+    filteredExpenses.forEach((expense) => {
+      const entry = byCategoryMap.get(expense.expenseCategory) || { count: 0, amount: 0 };
+      entry.count += 1;
+      entry.amount += expense.payment.amount;
+      byCategoryMap.set(expense.expenseCategory, entry);
+    });
+
+    return {
+      totalExpenses: filteredExpenses.length,
+      totalAmount,
+      byCategory: Array.from(byCategoryMap.entries()).map(([category, { count, amount }]) => ({
+        category,
+        count,
+        amount,
+        percentage: totalAmount ? ((amount / totalAmount) * 100).toFixed(2) : "0.00",
+      })),
+    };
+  }, [data, search, filteredExpenses]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || category || warehouse);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   return (
     <AdminLayoutBox
       header={{
@@ -167,6 +215,23 @@ export default function ExpensesReport() {
     >
       {/* Filters */}
       <div className="flex flex-col gap-4">
+        {/* Local search (description, category, payment method/status, warehouse, or creator - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Description, category, payment, warehouse, or creator...", "الوصف، الفئة، الدفع، المستودع، أو المنشئ...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Date Range */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DateTimePicker
@@ -225,6 +290,8 @@ export default function ExpensesReport() {
         />
       ) : data?.expenses?.length === 0 ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : filteredExpenses.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No expenses match your search", "لا توجد مصروفات مطابقة لبحثك")} />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -233,7 +300,7 @@ export default function ExpensesReport() {
                 {translate("Total Expenses", "إجمالي المصروفات")}
               </Text>
               <Text size="xl" fw={700}>
-                {data.summary.totalExpenses}
+                {filteredSummary.totalExpenses}
               </Text>
             </div>
             <div className="rounded border p-4">
@@ -241,7 +308,7 @@ export default function ExpensesReport() {
                 {translate("Total Amount", "المبلغ الإجمالي")}
               </Text>
               <Text size="xl" fw={700}>
-                ${data.summary.totalAmount.toLocaleString()}
+                ${filteredSummary.totalAmount.toLocaleString()}
               </Text>
             </div>
           </div>
@@ -261,7 +328,7 @@ export default function ExpensesReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.expenses.map((expense) => (
+                {filteredExpenses.map((expense) => (
                   <Table.Tr key={expense._id}>
                     <Table.Td>{formatDate(expense.createdAt, language)}</Table.Td>
                     <Table.Td>{expense.description}</Table.Td>
@@ -280,7 +347,7 @@ export default function ExpensesReport() {
                     {translate("Total", "المجموع")}
                   </Table.Td>
                   <Table.Td>
-                    {data.expenses.reduce((acc, expense) => acc + expense.payment.amount, 0).toFixed(2)}{" "}
+                    {filteredExpenses.reduce((acc, expense) => acc + expense.payment.amount, 0).toFixed(2)}{" "}
                     {translations.currency}
                   </Table.Td>
                 </Table.Tr>
@@ -302,7 +369,7 @@ export default function ExpensesReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.summary.byCategory.map((item) => (
+                {filteredSummary.byCategory.map((item) => (
                   <Table.Tr key={item.category} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">{getExpenseCategoryLabel(item.category)}</Table.Td>
                     <Table.Td>{item.count}</Table.Td>

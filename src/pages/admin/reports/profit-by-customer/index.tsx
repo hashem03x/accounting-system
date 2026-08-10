@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Group, Stack, Table, Select } from "@mantine/core";
+import { Button, Group, Stack, Table, Select, TextInput } from "@mantine/core";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
 import EmptySection from "@/components/ui/sections/empty";
@@ -77,6 +78,19 @@ export default function ProfitByCustomerReport() {
     initialData: { status: "", results: 0, data: [] },
     initialLoading: true,
   });
+
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. Searches customer name, email, and phone.
+  const [search, setSearch] = useState("");
+  const filteredRows = useMemo(() => {
+    return data.data.filter((item) => matchesSearchTerm(search, [item.customerName, item.customerEmail, item.customerPhone]));
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouse || online);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   const handleLoadData = () => {
     const controller = new AbortController();
@@ -173,6 +187,21 @@ export default function ProfitByCustomerReport() {
         }}
       >
         <Stack gap="md">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <TextInput
+              className="flex-1"
+              label={translate("Search", "بحث")}
+              placeholder={translate("Customer name, email, or phone...", "اسم العميل، البريد الإلكتروني، أو الهاتف...")}
+              leftSection={<solidIcons.Search />}
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+            />
+            {hasActiveFilters && (
+              <Button variant="subtle" color="gray" onClick={clearFilters}>
+                {translate("Clear Filters", "مسح الفلاتر")}
+              </Button>
+            )}
+          </div>
           <Group grow>
             <DateTimePicker
               valueFormat="YYYY-MM-DD"
@@ -252,6 +281,22 @@ export default function ProfitByCustomerReport() {
       }}
     >
       <Stack gap="md">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Customer name, email, or phone...", "اسم العميل، البريد الإلكتروني، أو الهاتف...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         <Group grow>
           <DateTimePicker
             valueFormat="YYYY-MM-DD"
@@ -295,6 +340,9 @@ export default function ProfitByCustomerReport() {
           />
         </Group>
 
+        {filteredRows.length === 0 ? (
+          <EmptySection useDefaultImg message={translate("No customers match your search", "لا يوجد عملاء مطابقون لبحثك")} />
+        ) : (
         <div className="overflow-x-auto">
           <Table className="text-nowrap" verticalSpacing="xs" withColumnBorders>
             <Table.Thead className="bg-gray-100 text-gray-800">
@@ -309,7 +357,7 @@ export default function ProfitByCustomerReport() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {data.data.map((item) => (
+              {filteredRows.map((item) => (
                 <Table.Tr key={item._id} className="text-gray-600">
                   <Table.Td className="font-semibold text-gray-800">
                     {item.customerName}
@@ -343,24 +391,25 @@ export default function ProfitByCustomerReport() {
                 <Table.Td></Table.Td>
                 <Table.Td></Table.Td>
                 <Table.Td style={{ textAlign: 'right' }}>
-                  {data.data.reduce((sum, item) => sum + item.orderCount, 0)}
+                  {filteredRows.reduce((sum, item) => sum + item.orderCount, 0)}
                 </Table.Td>
                 <Table.Td style={{ textAlign: 'right' }}>
-                  {data.data.reduce((sum, item) => sum + item.totalSales, 0).toFixed(2)}
+                  {filteredRows.reduce((sum, item) => sum + item.totalSales, 0).toFixed(2)}
                 </Table.Td>
                 <Table.Td style={{ textAlign: 'right' }}>
-                  {data.data.reduce((sum, item) => sum + item.costOfSales, 0).toFixed(2)}
+                  {filteredRows.reduce((sum, item) => sum + item.costOfSales, 0).toFixed(2)}
                 </Table.Td>
-                <Table.Td style={{ 
+                <Table.Td style={{
                   textAlign: 'right',
-                  color: data.data.reduce((sum, item) => sum + item.grossProfit, 0) < 0 ? '#ef4444' : '#22c55e'
+                  color: filteredRows.reduce((sum, item) => sum + item.grossProfit, 0) < 0 ? '#ef4444' : '#22c55e'
                 }}>
-                  {data.data.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)}
+                  {filteredRows.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)}
                 </Table.Td>
               </Table.Tr>
             </Table.Tbody>
           </Table>
         </div>
+        )}
       </Stack>
     </AdminLayoutBox>
   );

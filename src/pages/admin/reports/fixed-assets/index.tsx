@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { SortOrder } from "@/types/global";
 import { formatDate } from "@/utils/helpers/date-formaters";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table } from "@mantine/core";
+import { Button, Select, Table, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -78,6 +79,28 @@ export default function FixedAssetsReport() {
     initialLoading: true,
   });
 
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. Searches asset name, warehouse, and creator.
+  const [search, setSearch] = useState("");
+  const filteredAssets = useMemo(() => {
+    return data.assets.filter((asset) => matchesSearchTerm(search, [asset.name, asset.warehouse, asset.createdBy]));
+  }, [data, search]);
+
+  const filteredSummary = useMemo(() => {
+    if (!search) return data.summary;
+    return {
+      totalAssets: filteredAssets.length,
+      totalBookValue: filteredAssets.reduce((acc, asset) => acc + asset.bookValue, 0),
+      totalFairValue: filteredAssets.reduce((acc, asset) => acc + asset.fairValue, 0),
+    };
+  }, [data, search, filteredAssets]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouseId);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   function handleLoadData() {
     const controller = new AbortController();
     const canceled = { current: false };
@@ -139,6 +162,21 @@ export default function FixedAssetsReport() {
       }}
     >
       <div className="flex flex-wrap items-end gap-4 mb-8">
+        <TextInput
+          label={translate("Search", "بحث")}
+          placeholder={translate("Asset name, warehouse, or creator...", "اسم الأصل، المخزن، أو المنشئ...")}
+          leftSection={<solidIcons.Search />}
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          className="w-full max-w-[250px]"
+        />
+
+        {hasActiveFilters && (
+          <Button variant="subtle" color="gray" onClick={clearFilters}>
+            {translate("Clear Filters", "مسح الفلاتر")}
+          </Button>
+        )}
+
         <DateTimePicker
           clearable
           valueFormat="DD/MM/YYYY"
@@ -206,6 +244,8 @@ export default function FixedAssetsReport() {
         />
       ) : !data.assets.length ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : !filteredAssets.length ? (
+        <EmptySection useDefaultImg message={translate("No assets match your search", "لا توجد أصول مطابقة لبحثك")} />
       ) : (
         <div className="overflow-x-auto">
           <Table className="text-nowrap" verticalSpacing="xs" withColumnBorders>
@@ -219,7 +259,7 @@ export default function FixedAssetsReport() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {data.assets.map((asset) => (
+              {filteredAssets.map((asset) => (
                 <Table.Tr key={asset.name} className="text-gray-600">
                   <Table.Td className="font-semibold text-gray-800">{asset.name}</Table.Td>
                   <Table.Td>
@@ -236,13 +276,13 @@ export default function FixedAssetsReport() {
               {/* Summary Row */}
               <Table.Tr className="font-semibold text-gray-800" style={{ backgroundColor: "#f3f4f6" }}>
                 <Table.Td>
-                  {translate("Total", "الإجمالي")} ({data.summary.totalAssets})
+                  {translate("Total", "الإجمالي")} ({filteredSummary.totalAssets})
                 </Table.Td>
                 <Table.Td>
-                  {data.summary.totalBookValue.toFixed(2)} {translations.currency}
+                  {filteredSummary.totalBookValue.toFixed(2)} {translations.currency}
                 </Table.Td>
                 <Table.Td>
-                  {data.summary.totalFairValue.toFixed(2)} {translations.currency}
+                  {filteredSummary.totalFairValue.toFixed(2)} {translations.currency}
                 </Table.Td>
                 <Table.Td />
                 <Table.Td />

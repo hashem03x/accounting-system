@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMainCategories } from "@/context/MainCategoriesContext";
 import { useSubcategories } from "@/context/SubcategoriesContext";
@@ -6,9 +6,10 @@ import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { solidIcons } from "@/components/icons";
-import { Button, Select, Table, Text } from "@mantine/core";
+import { Button, Select, Table, Text, TextInput } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";

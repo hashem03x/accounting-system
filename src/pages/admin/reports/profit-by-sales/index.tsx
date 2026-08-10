@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Group, Stack, Select, Table } from "@mantine/core";
+import { Button, Group, Stack, Select, Table, TextInput } from "@mantine/core";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
 import EmptySection from "@/components/ui/sections/empty";
@@ -75,6 +76,19 @@ export default function ProfitBySalesReport() {
     initialData: { status: "", results: 0, data: [] },
     initialLoading: true,
   });
+
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. Searches order ID and customer name.
+  const [search, setSearch] = useState("");
+  const filteredRows = useMemo(() => {
+    return data.data.filter((item) => matchesSearchTerm(search, [item.orderId, item.customerName]));
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouse || online);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   const handleLoadData = () => {
     const controller = new AbortController();
@@ -162,6 +176,22 @@ export default function ProfitBySalesReport() {
       }}
     >
       <Stack gap="md">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Order ID or customer name...", "رقم الطلب أو اسم العميل...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         <Group grow>
           <DateTimePicker
             valueFormat="YYYY-MM-DD"
@@ -209,7 +239,11 @@ export default function ProfitBySalesReport() {
           <EmptySection />
         )}
 
-        {!loading && !error && data?.data && data.data.length > 0 && (
+        {!loading && !error && data?.data && data.data.length > 0 && filteredRows.length === 0 && (
+          <EmptySection useDefaultImg message={translate("No records match your search", "لا توجد سجلات مطابقة لبحثك")} />
+        )}
+
+        {!loading && !error && data?.data && data.data.length > 0 && filteredRows.length > 0 && (
           <div className="overflow-x-auto">
             <Table className="text-nowrap" verticalSpacing="xs" withColumnBorders>
               <Table.Thead className="bg-gray-100 text-gray-800">
@@ -223,7 +257,7 @@ export default function ProfitBySalesReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.data.map((item) => (
+                {filteredRows.map((item) => (
                   <Table.Tr key={item._id} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">
                       {formatDate(item.createdAt, language)}
@@ -258,16 +292,16 @@ export default function ProfitBySalesReport() {
                   <Table.Td></Table.Td>
                   <Table.Td></Table.Td>
                   <Table.Td style={{ textAlign: 'right' }}>
-                    {data.data.reduce((sum, item) => sum + item.totalSales, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.totalSales, 0).toFixed(2)}
                   </Table.Td>
                   <Table.Td style={{ textAlign: 'right' }}>
-                    {data.data.reduce((sum, item) => sum + item.costOfSales, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.costOfSales, 0).toFixed(2)}
                   </Table.Td>
-                  <Table.Td style={{ 
+                  <Table.Td style={{
                     textAlign: 'right',
-                    color: data.data.reduce((sum, item) => sum + item.grossProfit, 0) < 0 ? '#ef4444' : '#22c55e'
+                    color: filteredRows.reduce((sum, item) => sum + item.grossProfit, 0) < 0 ? '#ef4444' : '#22c55e'
                   }}>
-                    {data.data.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)}
                   </Table.Td>
                 </Table.Tr>
               </Table.Tbody>
