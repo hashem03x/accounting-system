@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
@@ -6,6 +6,7 @@ import useWarehouseHelpers from "@/hooks/useWarehouseHelpers";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { SortOrder } from "@/types/global";
 import { OrderSource, SalesOrder } from "@/types/orders";
@@ -16,7 +17,7 @@ import { getPaymentStatusLabel, paymentStatusesArray } from "@/utils/constants/p
 import { formatDateAndTime } from "@/utils/helpers/date-formaters";
 import { solidIcons } from "@/components/icons";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table } from "@mantine/core";
+import { Button, Select, Table, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -71,6 +72,34 @@ export default function SalesOrdersReport() {
     initialData: [],
     initialLoading: true,
   });
+
+  // Local, frontend-only search - filters the already-fetched report data in the browser, no
+  // extra request per keystroke. Searches order id/code, customer identity, and every product
+  // across every line item (not just the first), per order.
+  const [search, setSearch] = useState("");
+  const filteredData = useMemo(() => {
+    return data.filter((order) =>
+      matchesSearchTerm(search, [
+        order._id,
+        order.code,
+        order.customer?.name,
+        order.customer?.phone,
+        order.customer?.email,
+        ...order.items.flatMap((item) => [
+          item.variant?.product?.title?.en,
+          item.variant?.product?.title?.ar,
+          item.variant?.sku,
+          item.variant?.variantCode,
+        ]),
+      ]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || orderSource || warehouse || paymentStatus);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   function handleLoadData() {
     const controller = new AbortController();
@@ -135,6 +164,23 @@ export default function SalesOrdersReport() {
     >
       {/* Filters */}
       <div className="flex flex-col gap-4">
+        {/* Local search (order id/code, customer, product - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Order ID, customer, or product...", "الرقم المرجعي، العميل، أو المنتج...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Date Range */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DateTimePicker
