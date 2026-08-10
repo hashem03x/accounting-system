@@ -116,7 +116,7 @@ export default function ProductsReport() {
         product.categoryName?.ar,
         product.subcategoryName?.en,
         product.subcategoryName?.ar,
-        ...product.variants.flatMap((variant) => [variant.sku, variant.variantCode, variant.size, variant.color?.name?.en, variant.color?.name?.ar]),
+        ...product.variants.flatMap((variant) => [variant.sku, variant.variantCode, variant.size, variant.color]),
       ]),
     );
   }, [data, search]);
@@ -390,11 +390,11 @@ export default function ProductsReport() {
                     {translate("Total", "الإجمالي")}
                   </Table.Td>
                   <Table.Td className="font-semibold">
-                    {data.reduce((acc: number, product: ProductReport) => acc + product.price, 0).toFixed(2)}{" "}
+                    {filteredData.reduce((acc: number, product: ProductReport) => acc + product.price, 0).toFixed(2)}{" "}
                     {translations.currency}
                   </Table.Td>
                   <Table.Td className="font-semibold">
-                    {data
+                    {filteredData
                       .reduce(
                         (acc: number, product: ProductReport) =>
                           acc + getProductFinalPrice(product.priceAfterDiscount, product.price),
@@ -404,26 +404,23 @@ export default function ProductsReport() {
                     {translations.currency}
                   </Table.Td>
                   <Table.Td className="font-semibold">
-                    {data.reduce((acc: number, product: ProductReport) => acc + product.cost, 0).toFixed(2)}{" "}
+                    {filteredData.reduce((acc: number, product: ProductReport) => acc + product.cost, 0).toFixed(2)}{" "}
                     {translations.currency}
                   </Table.Td>
                   <Table.Td className="font-semibold">
-                    {data.reduce((acc: number, product: ProductReport) => acc + product.totalStock, 0)}
+                    {filteredData.reduce((acc: number, product: ProductReport) => acc + product.totalStock, 0)}
                   </Table.Td>
                   <Table.Td className="font-semibold">
-                    {
-                      /*data
-                      .reduce(
-                        (acc: number, product: ProductReport) => acc + product.cost * product.totalStock,
-                        0
-                      )
-                      .toFixed(2)*/
-                      totalValue
-                    }{" "}
+                    {/* Recomputed from the (possibly filtered) visible rows rather than the
+                        unfiltered backend `totalValue`, so this stays correct once a search is
+                        active - see the local search block above. */}
+                    {(search
+                      ? filteredData.reduce((acc: number, product: ProductReport) => acc + product.cost * product.totalStock, 0).toFixed(2)
+                      : totalValue)}{" "}
                     {translations.currency}
                   </Table.Td>
                   <Table.Td className="font-semibold">
-                    {data.reduce((acc: number, product: ProductReport) => acc + product.totalSold, 0)}
+                    {filteredData.reduce((acc: number, product: ProductReport) => acc + product.totalSold, 0)}
                   </Table.Td>
                   <Table.Td />
                   <Table.Td />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
@@ -6,6 +6,7 @@ import useWarehouseHelpers from "@/hooks/useWarehouseHelpers";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { SortOrder } from "@/types/global";
 import { Payment, PaymentMethod, PaymentCategory, PaymentType } from "@/types/payment";
@@ -15,7 +16,7 @@ import { getPaymentCategoryLabel, paymentCategoriesArray } from "@/utils/constan
 import { formatDateAndTime } from "@/utils/helpers/date-formaters";
 import { solidIcons } from "@/components/icons";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table } from "@mantine/core";
+import { Button, Select, Table, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -70,6 +71,21 @@ export default function PaymentsReport() {
     initialData: [],
     initialLoading: true,
   });
+
+  // Local, frontend-only search - filters the already-fetched report data in the browser, no
+  // extra request per keystroke. Searches order id, warehouse name, and notes.
+  const [search, setSearch] = useState("");
+  const filteredData = useMemo(() => {
+    return data.filter((payment) =>
+      matchesSearchTerm(search, [payment.purchaseOrderId, payment.salesOrderId, payment.notes, getWarehouseNameById(payment.warehouseId)]),
+    );
+  }, [data, search, getWarehouseNameById]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouse || paymentMethod || paymentCategory || paymentType);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   function handleLoadData() {
     const controller = new AbortController();
@@ -133,6 +149,23 @@ export default function PaymentsReport() {
     >
       {/* Filters */}
       <div className="flex flex-col gap-4">
+        {/* Local search (order id, warehouse, or notes - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Order ID, warehouse, or notes...", "رقم الطلب، الفرع، أو الملاحظات...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Start Date */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <DateTimePicker
@@ -238,6 +271,8 @@ export default function PaymentsReport() {
         />
       ) : data.length === 0 ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : filteredData.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No payments match your search", "لا توجد مدفوعات مطابقة لبحثك")} />
       ) : (
         <>
           {/* Summary Section */}
@@ -245,7 +280,7 @@ export default function PaymentsReport() {
             <h3>{translate("Warehouse Payments Summary", "ملخص المدفوعات بالفروع")}</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               {warehouses.map((warehouse) => {
-                const warehousePayments = data.filter((payment) => payment.warehouseId === warehouse._id);
+                const warehousePayments = filteredData.filter((payment) => payment.warehouseId === warehouse._id);
                 const inflow = warehousePayments
                   .filter((payment) => payment.type === "in")
                   .reduce((sum, payment) => sum + payment.amountPaid, 0);
@@ -301,7 +336,7 @@ export default function PaymentsReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.map((payment) => (
+                {filteredData.map((payment) => (
                   <Table.Tr key={payment._id} className="text-gray-600">
                     <Table.Td>{formatDateAndTime(payment.createdAt, language)}</Table.Td>
                     <Table.Td>{getWarehouseNameById(payment.warehouseId)}</Table.Td>
@@ -321,7 +356,7 @@ export default function PaymentsReport() {
                   <Table.Td>{translate("Total", "الإجمالي")}</Table.Td>
                   <Table.Td />
                   <Table.Td>
-                    {data
+                    {filteredData
                       .reduce((acc, payment) => {
                         const amount = payment.type === "in" ? payment.amountPaid : -payment.amountPaid;
                         return acc + amount;
