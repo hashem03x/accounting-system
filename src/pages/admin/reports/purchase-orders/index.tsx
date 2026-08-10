@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import { useWarehouses } from "@/context/WarehousesContext";
@@ -6,6 +6,7 @@ import useWarehouseHelpers from "@/hooks/useWarehouseHelpers";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { SortOrder } from "@/types/global";
 import { PurchaseOrder } from "@/types/orders";
@@ -15,7 +16,7 @@ import { getPaymentStatusLabel, paymentStatusesArray } from "@/utils/constants/p
 import { formatDateAndTime } from "@/utils/helpers/date-formaters";
 import { solidIcons } from "@/components/icons";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table } from "@mantine/core";
+import { Button, Select, Table, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -67,6 +68,34 @@ export default function PurchaseOrdersReport() {
     initialData: [],
     initialLoading: true,
   });
+
+  // Local, frontend-only search - filters the already-fetched report data in the browser, no
+  // extra request per keystroke. Searches order id/code, vendor identity, and every product
+  // across every line item (not just the first), per order.
+  const [search, setSearch] = useState("");
+  const filteredData = useMemo(() => {
+    return data.filter((po) =>
+      matchesSearchTerm(search, [
+        po._id,
+        po.code,
+        po.vendor?.name,
+        po.vendor?.contact?.phone,
+        po.vendor?.contact?.email,
+        ...po.items.flatMap((item) => [
+          item.variant?.product?.title?.en,
+          item.variant?.product?.title?.ar,
+          item.variant?.variantCode,
+          item.variant?.size,
+        ]),
+      ]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouseId || paymentStatus);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   function handleLoadData() {
     const controller = new AbortController();
@@ -131,6 +160,23 @@ export default function PurchaseOrdersReport() {
     >
       {/* Filters */}
       <div className="flex flex-col gap-4">
+        {/* Local search (order id/code, vendor, or product - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Order ID, vendor, or product...", "الرقم المرجعي، البائع، أو المنتج...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Date Range */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DateTimePicker
@@ -217,6 +263,8 @@ export default function PurchaseOrdersReport() {
         />
       ) : data.length === 0 ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : filteredData.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No orders match your search", "لا توجد طلبات مطابقة لبحثك")} />
       ) : (
         <>
           {/* Table */}
@@ -235,7 +283,7 @@ export default function PurchaseOrdersReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.map((po) => (
+                {filteredData.map((po) => (
                   <Table.Tr key={po._id} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">{po._id}</Table.Td>
                     <Table.Td>{getWarehouseNameById(po.warehouseId)}</Table.Td>
@@ -261,13 +309,13 @@ export default function PurchaseOrdersReport() {
                   <Table.Td />
                   <Table.Td />
                   <Table.Td>
-                    {data.reduce((acc, po) => acc + po.totalAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, po) => acc + po.totalAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td>
-                    {data.reduce((acc, po) => acc + po.paidAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, po) => acc + po.paidAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td>
-                    {data.reduce((acc, po) => acc + po.remainingAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, po) => acc + po.remainingAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td />
                 </Table.Tr>

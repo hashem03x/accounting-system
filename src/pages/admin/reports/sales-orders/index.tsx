@@ -88,8 +88,8 @@ export default function SalesOrdersReport() {
         ...order.items.flatMap((item) => [
           item.variant?.product?.title?.en,
           item.variant?.product?.title?.ar,
-          item.variant?.sku,
           item.variant?.variantCode,
+          item.variant?.size,
         ]),
       ]),
     );
@@ -280,6 +280,8 @@ export default function SalesOrdersReport() {
         />
       ) : data.length === 0 ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : filteredData.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No orders match your search", "لا توجد طلبات مطابقة لبحثك")} />
       ) : (
         <>
           {/* Table */}
@@ -299,7 +301,7 @@ export default function SalesOrdersReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.map((order) => (
+                {filteredData.map((order) => (
                   <Table.Tr key={order._id} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">{order._id}</Table.Td>
                     <Table.Td>{getOrderSourceLabel(order.orderSource, language)}</Table.Td>
@@ -327,13 +329,13 @@ export default function SalesOrdersReport() {
                   <Table.Td />
                   <Table.Td />
                   <Table.Td>
-                    {data.reduce((acc, po) => acc + po.totalAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, po) => acc + po.totalAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td>
-                    {data.reduce((acc, po) => acc + po.paidAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, po) => acc + po.paidAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td>
-                    {data.reduce((acc, po) => acc + po.remainingAmount, 0).toFixed(2)} {translations.currency}
+                    {filteredData.reduce((acc, po) => acc + po.remainingAmount, 0).toFixed(2)} {translations.currency}
                   </Table.Td>
                   <Table.Td />
                 </Table.Tr>
@@ -344,15 +346,15 @@ export default function SalesOrdersReport() {
             <p className="text-sm text-gray-600">
               {translate("Total Orders", "إجمالي الطلبات")}:{" "}
               <span className="font-bold text-gray-800">
-                {data.length} ({data.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2)} {translations.currency})
+                {filteredData.length} ({filteredData.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2)} {translations.currency})
               </span>
             </p>
             {/* Total Shipped Orders */}
             <p className="text-sm text-gray-600">
               {translate("Total Shipped Orders", "إجمالي الطلبات المشحونة")}:{" "}
               <span className="font-bold text-gray-800">
-                {data.filter((order) => order.shippingCost > 0).length} (
-                {data
+                {filteredData.filter((order) => order.shippingCost > 0).length} (
+                {filteredData
                   .filter((order) => order.shippingCost > 0)
                   .reduce((acc, order) => acc + order.totalAmount, 0)
                   .toFixed(2)}{" "}
@@ -363,8 +365,8 @@ export default function SalesOrdersReport() {
             <p className="text-sm text-gray-600">
               {translate("Total Unshipped Orders", "إجمالي الطلبات غير المشحونة")}:{" "}
               <span className="font-bold text-gray-800">
-                {data.filter((order) => order.shippingCost === 0).length} (
-                {data
+                {filteredData.filter((order) => order.shippingCost === 0).length} (
+                {filteredData
                   .filter((order) => order.shippingCost === 0)
                   .reduce((acc, order) => acc + order.totalAmount, 0)
                   .toFixed(2)}{" "}

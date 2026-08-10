@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMainCategories } from "@/context/MainCategoriesContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -6,6 +6,7 @@ import useCategoryHelpers from "@/hooks/useCategoryHelpers";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { SortOrder } from "@/types/global";
 import { Product, Season, Color } from "@/types/product";
@@ -15,7 +16,7 @@ import { getProductFinalPrice } from "@/utils/helpers/product-helpers";
 import { formatDate } from "@/utils/helpers/date-formaters";
 import { solidIcons } from "@/components/icons";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table } from "@mantine/core";
+import { Button, Select, Table, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -102,6 +103,30 @@ export default function ProductsReport() {
 
   const [totalValue, setTotalValue] = useState(0);
 
+  // Local, frontend-only search - filters the already-fetched report data in the browser, no
+  // extra request per keystroke. Searches product title/category, and every variant's sku/code/
+  // size/color (not just the first variant).
+  const [search, setSearch] = useState("");
+  const filteredData = useMemo(() => {
+    return data.filter((product) =>
+      matchesSearchTerm(search, [
+        product.title?.en,
+        product.title?.ar,
+        product.categoryName?.en,
+        product.categoryName?.ar,
+        product.subcategoryName?.en,
+        product.subcategoryName?.ar,
+        ...product.variants.flatMap((variant) => [variant.sku, variant.variantCode, variant.size, variant.color?.name?.en, variant.color?.name?.ar]),
+      ]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || season || category || subcategory || warehouse);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   function handleLoadData() {
     const controller = new AbortController();
     const canceled = { current: false };
@@ -166,6 +191,23 @@ export default function ProductsReport() {
     >
       {/* Filters */}
       <div className="flex flex-col gap-4">
+        {/* Local search (title, category, or variant sku/code/size/color - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Product title, category, or variant...", "اسم المنتج، الفئة، أو المتغير...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Date Range */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DateTimePicker
@@ -289,6 +331,8 @@ export default function ProductsReport() {
         />
       ) : data.length === 0 ? (
         <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+      ) : filteredData.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No products match your search", "لا توجد منتجات مطابقة لبحثك")} />
       ) : (
         <>
           {/* Table */}
@@ -311,7 +355,7 @@ export default function ProductsReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.map((product) => {
+                {filteredData.map((product) => {
                   return (
                     <Table.Tr key={product._id} className="text-gray-600">
                       <Table.Td className="font-semibold text-gray-800">
