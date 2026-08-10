@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import paths from "@/utils/constants/paths";
 import { SortOrder } from "@/types/global";
 import { formatDate } from "@/utils/helpers/date-formaters";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Select, Table, Text } from "@mantine/core";
+import { Button, Select, Table, Text, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -134,13 +135,36 @@ export default function VariantHistoryReport() {
     }
   };
 
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. A variant matches if its product/sku/variant fields match, or
+  // if ANY of its warehouse stock entries match - searching the entire array, not just the first.
+  const [search, setSearch] = useState("");
+  const filteredData = useMemo(() => {
+    return data.data.filter((variant) =>
+      matchesSearchTerm(search, [
+        variant.productName,
+        variant.sku,
+        variant.variantCode,
+        variant.color,
+        variant.size,
+        ...variant.warehouseNames.flatMap((wh) => [wh.warehouse?.name]),
+      ]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || stockStatus || warehouse);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   if (loading) return <LoadingSection />;
   if (error) return <ErrorSection errorTitle={translate("Error", "خطأ")} errorMessage={error} />;
   if (!data.data?.length) return <EmptySection />;
 
   // Get unique warehouses from all variants
   const uniqueWarehouses = Array.from(new Set(
-    data.data.flatMap(variant => 
+    data.data.flatMap(variant =>
       variant.warehouseNames.map(wh => wh.warehouse.name)
     )
   ));
@@ -176,6 +200,23 @@ export default function VariantHistoryReport() {
       }}
     >
       <div className="flex flex-col gap-4">
+        {/* Local search (product, SKU, variant code, color, size, or warehouse - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Product, SKU, variant code, color, or size...", "المنتج، رمز المنتج، رمز المتغير، اللون، أو المقاس...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <DateTimePicker
             clearable
@@ -235,38 +276,42 @@ export default function VariantHistoryReport() {
           />
         </div>
 
-        <div className="overflow-x-auto">
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{translate("Product", "المنتج")}</Table.Th>
-                <Table.Th>{translate("SKU", "رمز المنتج")}</Table.Th>
-                <Table.Th>{translate("Variant Code", "رمز المتغير")}</Table.Th>
-                <Table.Th>{translate("Color", "اللون")}</Table.Th>
-                <Table.Th>{translate("Size", "المقاس")}</Table.Th>
-                <Table.Th>{translate("Stock Level", "مستوى المخزون")}</Table.Th>
-                <Table.Th>{translate("Status", "الحالة")}</Table.Th>
-                <Table.Th>{translate("Created At", "تاريخ الإنشاء")}</Table.Th>
-                <Table.Th>{translate("Updated At", "تاريخ التحديث")}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {data.data.map((variant) => (
-                <Table.Tr key={variant._id}>
-                  <Table.Td>{variant.productName}</Table.Td>
-                  <Table.Td>{variant.sku}</Table.Td>
-                  <Table.Td>{variant.variantCode}</Table.Td>
-                  <Table.Td>{variant.color}</Table.Td>
-                  <Table.Td>{variant.size}</Table.Td>
-                  <Table.Td>{variant.stockLevel}</Table.Td>
-                  <Table.Td>{getStockStatusLabel(variant.stockStatus)}</Table.Td>
-                  <Table.Td>{formatDate(variant.createdAt, language)}</Table.Td>
-                  <Table.Td>{formatDate(variant.updatedAt, language)}</Table.Td>
+        {filteredData.length === 0 ? (
+          <EmptySection useDefaultImg message={translate("No variants match your search", "لا توجد متغيرات مطابقة لبحثك")} />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{translate("Product", "المنتج")}</Table.Th>
+                  <Table.Th>{translate("SKU", "رمز المنتج")}</Table.Th>
+                  <Table.Th>{translate("Variant Code", "رمز المتغير")}</Table.Th>
+                  <Table.Th>{translate("Color", "اللون")}</Table.Th>
+                  <Table.Th>{translate("Size", "المقاس")}</Table.Th>
+                  <Table.Th>{translate("Stock Level", "مستوى المخزون")}</Table.Th>
+                  <Table.Th>{translate("Status", "الحالة")}</Table.Th>
+                  <Table.Th>{translate("Created At", "تاريخ الإنشاء")}</Table.Th>
+                  <Table.Th>{translate("Updated At", "تاريخ التحديث")}</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredData.map((variant) => (
+                  <Table.Tr key={variant._id}>
+                    <Table.Td>{variant.productName}</Table.Td>
+                    <Table.Td>{variant.sku}</Table.Td>
+                    <Table.Td>{variant.variantCode}</Table.Td>
+                    <Table.Td>{variant.color}</Table.Td>
+                    <Table.Td>{variant.size}</Table.Td>
+                    <Table.Td>{variant.stockLevel}</Table.Td>
+                    <Table.Td>{getStockStatusLabel(variant.stockStatus)}</Table.Td>
+                    <Table.Td>{formatDate(variant.createdAt, language)}</Table.Td>
+                    <Table.Td>{formatDate(variant.updatedAt, language)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </div>
+        )}
 
         <div className="mt-4">
           <Text size="lg" fw={500} mb={2}>{translate("Warehouse Stock Details", "تفاصيل المخزون في المستودعات")}</Text>
@@ -275,7 +320,7 @@ export default function VariantHistoryReport() {
               <div key={warehouseName} className="p-4 border rounded">
                 <Text size="sm" c="dimmed">{warehouseName}</Text>
                 <Text size="xl" fw={700}>
-                  {data.data.reduce((total, variant) => {
+                  {filteredData.reduce((total, variant) => {
                     const warehouseStock = variant.warehouseNames.find(
                       wh => wh.warehouse.name === warehouseName
                     );

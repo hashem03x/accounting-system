@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { useWarehouses } from "@/context/WarehousesContext";
 import { DateTimePicker } from "@mantine/dates";
-import { Select, Title, Stack, Card, Group, Button } from "@mantine/core";
+import { Select, Title, Stack, Card, Group, Button, TextInput } from "@mantine/core";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
 import EmptySection from "@/components/ui/sections/empty";
@@ -122,30 +123,63 @@ export default function TreasuryBalanceReport() {
 
   const [downloading, setDownloading] = useState(false);
 
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. A warehouse card matches if its name matches, or if ANY of its
+  // payment methods match - searching the entire array, not just the first.
+  const [search, setSearch] = useState("");
+  const filteredTreasuries = useMemo(() => {
+    return (data.data || []).filter((treasury) =>
+      matchesSearchTerm(search, [treasury.warehouse, ...treasury.paymentMethods.map((method) => method.method)]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || warehouse);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   const renderFilters = () => (
-    <Group grow>
-      <DateTimePicker
-        valueFormat="YYYY-MM-DD"
-        label={translate("Start Date", "تاريخ البداية")}
-        value={startDate}
-        onChange={setStartDate}
-        clearable
-      />
-      <DateTimePicker
-        valueFormat="YYYY-MM-DD"
-        label={translate("End Date", "تاريخ النهاية")}
-        value={endDate}
-        onChange={setEndDate}
-        clearable
-      />
-      <Select
-        label={translate("Warehouse", "المخزن")}
-        value={warehouse}
-        onChange={setWarehouse}
-        data={warehouses?.map((w) => ({ value: w._id, label: w.name })) || []}
-        clearable
-      />
-    </Group>
+    <>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <TextInput
+          className="flex-1"
+          label={translate("Search", "بحث")}
+          placeholder={translate("Warehouse or payment method...", "المخزن أو طريقة الدفع...")}
+          leftSection={<solidIcons.Search />}
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        {hasActiveFilters && (
+          <Button variant="subtle" color="gray" onClick={clearFilters}>
+            {translate("Clear Filters", "مسح الفلاتر")}
+          </Button>
+        )}
+      </div>
+      <Group grow>
+        <DateTimePicker
+          valueFormat="YYYY-MM-DD"
+          label={translate("Start Date", "تاريخ البداية")}
+          value={startDate}
+          onChange={setStartDate}
+          clearable
+        />
+        <DateTimePicker
+          valueFormat="YYYY-MM-DD"
+          label={translate("End Date", "تاريخ النهاية")}
+          value={endDate}
+          onChange={setEndDate}
+          clearable
+        />
+        <Select
+          label={translate("Warehouse", "المخزن")}
+          value={warehouse}
+          onChange={setWarehouse}
+          data={warehouses?.map((w) => ({ value: w._id, label: w.name })) || []}
+          clearable
+        />
+      </Group>
+    </>
   );
 
   const renderPaymentMethodRow = (method: PaymentMethod) => (
@@ -383,7 +417,11 @@ export default function TreasuryBalanceReport() {
     >
       <Stack gap="md">
         {renderFilters()}
-        {data.data.map(renderWarehouseTreasury)}
+        {filteredTreasuries.length === 0 ? (
+          <EmptySection useDefaultImg message={translate("No results match your search", "لا توجد نتائج مطابقة لبحثك")} />
+        ) : (
+          filteredTreasuries.map(renderWarehouseTreasury)
+        )}
       </Stack>
     </AdminLayoutBox>
   );

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/context/LanguageContext";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDataHandler from "@/hooks/useDataHandler";
+import { matchesSearchTerm } from "@/utils/helpers/local-search";
 import { DateTimePicker } from "@mantine/dates";
-import { Button, Table, Group, Stack } from "@mantine/core";
+import { Button, Table, Group, Stack, TextInput } from "@mantine/core";
 import AdminLayoutBox from "@/components/ui/admin-layout-box";
 import LoadingSection from "@/components/ui/sections/loading";
 import ErrorSection from "@/components/ui/sections/error";
@@ -79,6 +80,32 @@ export default function ReturnsReport() {
     },
     initialLoading: true
   });
+
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. Searches customer, warehouse, product, category, variant, and creator.
+  const [search, setSearch] = useState("");
+  const filteredRows = useMemo(() => {
+    return data.data.filter((item) =>
+      matchesSearchTerm(search, [
+        item.customerName,
+        item.customerPhone,
+        item.warehouse,
+        item.product,
+        item.category,
+        item.subcategory,
+        item.variantCode,
+        item.color,
+        item.size,
+        item.createdBy,
+      ]),
+    );
+  }, [data, search]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
 
   function handleLoadData() {
     const controller = new AbortController();
@@ -169,6 +196,23 @@ export default function ReturnsReport() {
       }}
     >
       <Stack gap="lg">
+        {/* Local search (customer, warehouse, product, category, variant, or creator - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Customer, product, warehouse, or variant...", "العميل، المنتج، المخزن، أو الصنف...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Filters */}
         <Group grow>
           <DateTimePicker
@@ -197,6 +241,8 @@ export default function ReturnsReport() {
           />
         ) : !data?.results ? (
           <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
+        ) : filteredRows.length === 0 ? (
+          <EmptySection useDefaultImg message={translate("No returns match your search", "لا توجد مرتجعات مطابقة لبحثك")} />
         ) : (
           <div className="overflow-x-auto">
             <Table className="text-nowrap" verticalSpacing="xs" withColumnBorders>
@@ -218,7 +264,7 @@ export default function ReturnsReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.data.map((item: ReturnData) => (
+                {filteredRows.map((item: ReturnData) => (
                   <Table.Tr key={item.returnId} className="text-gray-600">
                     <Table.Td className="font-semibold text-gray-800">{item.customerName}</Table.Td>
                     <Table.Td>{item.customerPhone}</Table.Td>
@@ -240,10 +286,10 @@ export default function ReturnsReport() {
                 <Table.Tr className="font-semibold text-gray-800" style={{ backgroundColor: "#f3f4f6" }}>
                   <Table.Td colSpan={9}>{translate("Total", "المجموع")}</Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {data.data.reduce((sum, item) => sum + item.returnedQuantity, 0)}
+                    {filteredRows.reduce((sum, item) => sum + item.returnedQuantity, 0)}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {data.data.reduce((sum, item) => sum + item.returnedAmount, 0).toFixed(2)}
+                    {filteredRows.reduce((sum, item) => sum + item.returnedAmount, 0).toFixed(2)}
                   </Table.Td>
                   <Table.Td colSpan={2}></Table.Td>
                 </Table.Tr>

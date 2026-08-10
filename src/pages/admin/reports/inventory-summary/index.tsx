@@ -190,6 +190,43 @@ export default function InventorySummaryReport() {
   const summary = getSummary();
   const inventory = getInventory();
 
+  // Local, frontend-only search - filters the already-fetched report rows in the browser, no
+  // extra request per keystroke. An item matches if its title/sku/category/subcategory match, or
+  // if ANY of its variants match (variant code, color, size, sku) - searching the entire array,
+  // not just the first variant.
+  const [search, setSearch] = useState("");
+  const filteredInventory = useMemo(() => {
+    return inventory.filter((item) =>
+      matchesSearchTerm(search, [
+        item.title?.en,
+        item.title?.ar,
+        item.sku,
+        item.category?.en,
+        item.category?.ar,
+        item.subcategory?.en,
+        item.subcategory?.ar,
+        ...(item.variants || []).flatMap((variant) => [variant.sku, variant.variantCode, variant.color, variant.size]),
+      ]),
+    );
+  }, [inventory, search]);
+
+  const filteredSummary = useMemo(() => {
+    if (!search) return summary;
+    return {
+      ...summary,
+      totalProducts: filteredInventory.length,
+      totalValue: filteredInventory.reduce((acc, item) => acc + (item.value || 0), 0),
+      totalStock: filteredInventory.reduce((acc, item) => acc + (item.stockLevel || 0), 0),
+      totalSold: filteredInventory.reduce((acc, item) => acc + (item.totalSold || 0), 0),
+    };
+  }, [search, filteredInventory, summary]);
+
+  const hasActiveFilters = Boolean(search || startDate || endDate || category || subCategory || stockStatus || warehouse);
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams());
+  };
+
   function handleLoadData() {
     const controller = new AbortController();
     const canceled = { current: false };
@@ -251,6 +288,23 @@ export default function InventorySummaryReport() {
     >
       {/* Filters */}
       <div className="flex flex-col gap-4">
+        {/* Local search (title, sku, category, subcategory, or any variant - filters the already-loaded data client-side) */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <TextInput
+            className="flex-1"
+            label={translate("Search", "بحث")}
+            placeholder={translate("Title, SKU, category, or variant...", "العنوان، رمز التخزين، الفئة، أو الصنف...")}
+            leftSection={<solidIcons.Search />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+          />
+          {hasActiveFilters && (
+            <Button variant="subtle" color="gray" onClick={clearFilters}>
+              {translate("Clear Filters", "مسح الفلاتر")}
+            </Button>
+          )}
+        </div>
+
         {/* Date Range */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <DateTimePicker
@@ -345,6 +399,8 @@ export default function InventorySummaryReport() {
           </div>
           <EmptySection useDefaultImg message={translate("No Data Found", "لا توجد بيانات")} />
         </>
+      ) : filteredInventory.length === 0 ? (
+        <EmptySection useDefaultImg message={translate("No inventory items match your search", "لا توجد عناصر مخزون مطابقة لبحثك")} />
       ) : (
         <div>
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -353,7 +409,7 @@ export default function InventorySummaryReport() {
                 {translate("Total Products", "إجمالي المنتجات")}
               </Text>
               <Text size="xl" fw={700}>
-                {summary.totalProducts}
+                {filteredSummary.totalProducts}
               </Text>
             </div>
             <div className="rounded border p-4">
@@ -361,7 +417,7 @@ export default function InventorySummaryReport() {
                 {translate("Total Value", "القيمة الإجمالية")}
               </Text>
               <Text size="xl" fw={700}>
-                {summary.totalValue.toLocaleString()} {translations.currency}
+                {filteredSummary.totalValue.toLocaleString()} {translations.currency}
               </Text>
             </div>
             <div className="rounded border p-4">
@@ -369,7 +425,7 @@ export default function InventorySummaryReport() {
                 {translate("Total Stock", "إجمالي المخزون")}
               </Text>
               <Text size="xl" fw={700}>
-                {summary.totalStock}
+                {filteredSummary.totalStock}
               </Text>
             </div>
             <div className="rounded border p-4">
@@ -377,7 +433,7 @@ export default function InventorySummaryReport() {
                 {translate("Total Sold", "إجمالي المبيعات")}
               </Text>
               <Text size="xl" fw={700}>
-                {summary.totalSold}
+                {filteredSummary.totalSold}
               </Text>
             </div>
           </div>
@@ -428,7 +484,7 @@ export default function InventorySummaryReport() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {inventory.flatMap((item, index) => {
+                {filteredInventory.flatMap((item, index) => {
                   // If no variants, display a single row for the item
                   if (!item.variants || item.variants.length === 0) {
                     return (
@@ -491,9 +547,9 @@ export default function InventorySummaryReport() {
                 {/* Totals Row */}
                 <Table.Tr className="bg-gray-50">
                   <Table.Td colSpan={9}>{translate("Total", "الإجمالي")}</Table.Td>
-                  <Table.Td>{summary.totalStock}</Table.Td>
+                  <Table.Td>{filteredSummary.totalStock}</Table.Td>
                   <Table.Td>
-                    {summary.totalValue} {translations.currency}
+                    {filteredSummary.totalValue} {translations.currency}
                   </Table.Td>
                   <Table.Td />
                 </Table.Tr>
