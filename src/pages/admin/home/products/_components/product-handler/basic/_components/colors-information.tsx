@@ -4,7 +4,7 @@ import { Color } from "@/types/product";
 import { UploadedImage } from "@/types/global";
 import ratios, { getRatioLabel } from "@/utils/constants/ratios";
 import { colorsArray, getColorLabel } from "@/utils/constants/colors";
-import { ActionIcon, Button, ColorInput, Select } from "@mantine/core";
+import { ActionIcon, Autocomplete, Button, ColorInput } from "@mantine/core";
 import { solidIcons, outlineIcons } from "@/components/icons";
 import MultiImgsController from "@/components/ui/img-controller-multi";
 import Img from "@/components/ui/img";
@@ -101,18 +101,15 @@ export default function ColorsInformation() {
 
           {/* Color Name and Code */}
           <div className="flex gap-3">
-            <Select
+            <Autocomplete
               className="flex-1"
               withAsterisk
-              searchable
-              allowDeselect={false}
-              placeholder={translate("Color Name", "اسم اللون")}
+              placeholder={translate("Type any color name", "اكتب اسم أي لون")}
               value={colorData.name}
-              onChange={(value) => handleChangeColorName(colorIndex, value as Color)}
-              data={colorsArray.map((color) => ({
-                label: translate(color.label.en, color.label.ar),
-                value: color.value,
-              }))}
+              onChange={(value) => handleChangeColorName(colorIndex, value)}
+              // Suggestions only - not a restriction. Any free text is accepted; these are just
+              // the old predefined names, offered as a convenience for the common case.
+              data={colorsArray.map((color) => color.value)}
               // readOnly={!!currentProduct?.colors.find((c) => c.name === colorData.name)}
               readOnly={readOnly}
             />

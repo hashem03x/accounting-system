@@ -160,10 +160,8 @@ export const colorsArray = Object.values(colors);
 // ================ Helpers ================
 
 export const getColorLabel = (color: Color, language: Language) => {
-  // If the color doesn't exist in our predefined colors, return the color name itself
-  if (!colors[color]) {
-    console.warn(`Color "${color}" not found in predefined colors`);
-    return color;
-  }
+  // Colors are free text now (see types/product.d.ts) - a name outside this predefined list is
+  // expected and common, not a data problem, so this falls back to the raw name without warning.
+  if (!colors[color]) return color;
   return translate(language, colors[color].label.en, colors[color].label.ar);
 };

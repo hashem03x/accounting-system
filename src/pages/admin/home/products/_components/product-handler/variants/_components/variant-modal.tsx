@@ -6,7 +6,7 @@ import useWarehouseHelpers from "@/hooks/useWarehouseHelpers";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
 import generateRandomNumber from "@/utils/helpers/generateRandomNumber";
-import { colorsArray, getColorLabel } from "@/utils/constants/colors";
+import { getColorLabel } from "@/utils/constants/colors";
 import { Button, NumberInput, Select, TextInput } from "@mantine/core";
 import Modal from "@/components/ui/modal";
 import ErrorAlert from "@/components/ui/error-alert";
@@ -180,15 +180,16 @@ export default function VariantModal({
             label={translate("Select Color", "اختر لون")}
             placeholder={translate("Select Color", "اختر لون")}
             description={translate(
-              "Select one of the predefined colors for this product.",
-              "اختر أحد الألوان المحددة مسبقاً لهذا المنتج.",
+              "Select one of this product's defined colors.",
+              "اختر أحد ألوان هذا المنتج.",
             )}
             value={color}
             onChange={(value) => setColor(value as Color)}
-            // Options are filtered based on the colors of the product.
-            data={colorsArray
-              .filter((color) => productColors.map((productColor) => productColor.name).includes(color.value))
-              .map((color) => ({ label: translate(color.label.en, color.label.ar), value: color.value }))}
+            // Built straight from this product's own declared colors - not the fixed/predefined
+            // colors.ts list, since a product's colors are now free text (see colors-information.tsx)
+            // and may not appear in that list at all. getColorLabel still translates the older
+            // predefined names for display, falling back to the raw name for a custom one.
+            data={productColors.map((productColor) => ({ label: getColorLabel(productColor.name, language), value: productColor.name }))}
             allowDeselect={false}
             required
             flex={1}

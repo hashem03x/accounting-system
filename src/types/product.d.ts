@@ -36,28 +36,12 @@ export type Product = {
 
 export type Season = "summer" | "winter" | "all";
 
-export type Color =
-  | "black"
-  | "white"
-  | "red"
-  | "green"
-  | "blue"
-  | "yellow"
-  | "orange"
-  | "brown"
-  | "cream"
-  | "olive"
-  | "navy"
-  | "pink"
-  | "gray"
-  | "purple"
-  | "coffee"
-  | "beige"
-  | "khaki"
-  | "gold"
-  | "silver"
-  | "maroon"
-  | "teal";
+// Free text - not restricted to a predefined list. The color picker lets an admin type/name any
+// color, not just pick one from a fixed set (see colors-information.tsx) - the backend's
+// colorSchema.name validator was loosened to match (see productModel.js). colors.ts's
+// colorsArray/getColorLabel still exist for translating the older predefined names (and any
+// matching custom name) for display, with a graceful fallback to the raw string otherwise.
+export type Color = string;
 
 export type ProductColor = {
   name: Color;
