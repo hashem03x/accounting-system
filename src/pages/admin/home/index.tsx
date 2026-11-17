@@ -17,7 +17,11 @@ import { Link } from "react-router-dom";
 import StatTile from "./_components/stat-tile";
 import QuickNavCard from "./_components/quick-nav-card";
 
-const HOME = `${paths.admin}/${paths.home}`;
+// Absolute (leading slash) - without it, React Router resolves these `to` values relative to the
+// currently matched route, which for this page IS already "/admin/home", producing
+// "/admin/home/admin/home/..." instead of "/admin/home/...".
+const HOME = `/${paths.admin}/${paths.home}`;
+const ADMIN = `/${paths.admin}`;
 
 type PaginatedCountResponse = { paginationResult?: { numberOfPages?: number } };
 type RecentOrderListItem = {
@@ -255,9 +259,9 @@ export default function Home() {
       show: canIReadWarehouses,
     },
     { to: `${HOME}/${paths.transfers}`, Icon: outlineIcons.ArrowDownOnSquare, title: translations.pages.transfers, show: canIReadTransfers },
-    { to: paths.reports, Icon: outlineIcons.ChartBar, title: translations.pages.reports, show: canIReadReports },
-    { to: paths.analytics, Icon: outlineIcons.Analytics, title: translations.pages.analytics, show: canIReadAnalytics },
-    { to: paths.cash, Icon: outlineIcons.DollarSign, title: translations.pages.cash, show: canIReadCash },
+    { to: `${ADMIN}/${paths.reports}`, Icon: outlineIcons.ChartBar, title: translations.pages.reports, show: canIReadReports },
+    { to: `${ADMIN}/${paths.analytics}`, Icon: outlineIcons.Analytics, title: translations.pages.analytics, show: canIReadAnalytics },
+    { to: `${ADMIN}/${paths.cash}`, Icon: outlineIcons.DollarSign, title: translations.pages.cash, show: canIReadCash },
   ].filter((card) => card.show);
 
   return (
@@ -358,7 +362,7 @@ export default function Home() {
             value={data && formatCurrency(data.cashBalance, language)}
             loading={loading}
             unavailable={failedStats.has("cashBalance")}
-            to={canIReadCash ? paths.cash : undefined}
+            to={canIReadCash ? `${ADMIN}/${paths.cash}` : undefined}
           />
         </div>
         {error && !loading && (
