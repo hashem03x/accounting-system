@@ -3,8 +3,8 @@ import { useLanguage } from "@/context/LanguageContext";
 import { Color } from "@/types/product";
 import { UploadedImage } from "@/types/global";
 import ratios, { getRatioLabel } from "@/utils/constants/ratios";
-import { colorsArray } from "@/utils/constants/colors";
-import { Button, ColorInput, Select } from "@mantine/core";
+import { colorsArray, getColorLabel } from "@/utils/constants/colors";
+import { ActionIcon, Button, ColorInput, Select } from "@mantine/core";
 import { solidIcons, outlineIcons } from "@/components/icons";
 import MultiImgsController from "@/components/ui/img-controller-multi";
 import Img from "@/components/ui/img";
@@ -14,8 +14,44 @@ const IMAGE_WIDTH = "120px";
 
 const MAX_IMAGES = 5;
 
+// Quick-pick swatches for the picker's popover - purely a UI shortcut for the common predefined
+// color names in colors.ts, not a data contract: the stored value is still whatever HEX string
+// ends up in `code` (typed manually, picked from the saturation/hue area, or one of these), same
+// as before this feature existed. Intentionally kept local to this file rather than added to
+// colors.ts, since it's a presentation detail of this one picker, not something other
+// consumers of the Color/colorsArray exports (variant-modal, Filters, product-card, ...) need.
+const HEX_SWATCHES = [
+  "#000000",
+  "#FFFFFF",
+  "#FF0000",
+  "#008000",
+  "#0000FF",
+  "#FFFF00",
+  "#FFA500",
+  "#A52A2A",
+  "#FFFDD0",
+  "#808000",
+  "#000080",
+  "#FFC0CB",
+  "#808080",
+  "#800080",
+  "#6F4E37",
+  "#F5F5DC",
+  "#F0E68C",
+  "#FFD700",
+  "#C0C0C0",
+  "#800000",
+  "#008080",
+];
+
+const HEX_PATTERN = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+
+function isValidHexColor(value: string) {
+  return HEX_PATTERN.test(value.trim());
+}
+
 export default function ColorsInformation() {
-  const { translate } = useLanguage();
+  const { translate, language } = useLanguage();
 
   const { colors, setColors, readOnly, currentProduct } = useProduct();
 
@@ -83,11 +119,45 @@ export default function ColorsInformation() {
             <ColorInput
               className="flex-1"
               withAsterisk
-              placeholder={translate("Color Code", "درجة اللون")}
+              placeholder={translate("Color Code (e.g. #000000)", "درجة اللون (مثال: #000000)")}
               value={colorData.code}
               onChange={(value) => handleChangeColorCode(colorIndex, value)}
               readOnly={readOnly}
+              format="hex"
+              swatches={HEX_SWATCHES}
+              error={
+                colorData.code && !isValidHexColor(colorData.code)
+                  ? translate("Enter a valid HEX color, e.g. #000000", "أدخل كود هيكس صالح، مثال: #000000")
+                  : undefined
+              }
+              // No built-in `clearable` prop on this Mantine version's ColorInput - a manual clear
+              // button replaces the (also built-in) eye-dropper button only while there's a value
+              // to clear, so both affordances stay available depending on the field's state.
+              rightSection={
+                colorData.code && !readOnly ? (
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => handleChangeColorCode(colorIndex, "")}
+                    title={translate("Clear color", "مسح اللون")}
+                  >
+                    <solidIcons.XMark />
+                  </ActionIcon>
+                ) : undefined
+              }
             />
+          </div>
+
+          {/* Selected color preview: swatch + name + HEX, matching the picker's current value */}
+          <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+            <span
+              className="h-6 w-6 shrink-0 rounded-full border border-gray-300"
+              style={{ backgroundColor: isValidHexColor(colorData.code || "") ? colorData.code : "transparent" }}
+            />
+            <span>
+              {translate("Selected Color", "اللون المحدد")}: {getColorLabel(colorData.name, language)}
+              {colorData.code && isValidHexColor(colorData.code) ? ` — ${translate("HEX", "هيكس")}: ${colorData.code.toUpperCase()}` : ""}
+            </span>
           </div>
 
           {/* Images */}

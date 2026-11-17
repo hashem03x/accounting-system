@@ -6,7 +6,7 @@ import useWarehouseHelpers from "@/hooks/useWarehouseHelpers";
 import useDataHandler from "@/hooks/useDataHandler";
 import handleRequest from "@/utils/helpers/handle-request";
 import generateRandomNumber from "@/utils/helpers/generateRandomNumber";
-import { colorsArray } from "@/utils/constants/colors";
+import { colorsArray, getColorLabel } from "@/utils/constants/colors";
 import { Button, NumberInput, Select, TextInput } from "@mantine/core";
 import Modal from "@/components/ui/modal";
 import ErrorAlert from "@/components/ui/error-alert";
@@ -204,6 +204,25 @@ export default function VariantModal({
           />
         </div>
 
+        {/* Color preview: a variant doesn't own its own HEX value - it references one of the
+            product's already-defined colors by name (see useProduct().productColors above and
+            colors-information.tsx, where that HEX is actually picked/entered) - so this is a
+            read-only swatch for whichever color is currently selected, not a second color input. */}
+        {color && (
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span
+              className="h-6 w-6 shrink-0 rounded-full border border-gray-300"
+              style={{ backgroundColor: productColors.find((c) => c.name === color)?.code || "transparent" }}
+            />
+            <span>
+              {translate("Color Preview", "معاينة اللون")}: {getColorLabel(color, language)}
+              {productColors.find((c) => c.name === color)?.code
+                ? ` — HEX: ${productColors.find((c) => c.name === color)!.code.toUpperCase()}`
+                : ""}
+            </span>
+          </div>
+        )}
+
         {/* Stock Information */}
         {variantToUpdate && (
           <div className="flex flex-col gap-2">
@@ -276,6 +295,16 @@ export default function VariantModal({
 
 // =============================================================
 
+// Compares case/whitespace-insensitively so a legacy variant stored as "xl" still blocks creating
+// a second "XL" (or vice versa) - see backend/server/utils/helper.js#normalizeSize, which is what
+// the backend now normalizes every newly-saved size to.
+function normalizeSizeForComparison(size: string) {
+  return size.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
 function isVariantExists(existingVariants: Variant[], color: Color, size: string) {
-  return existingVariants.some((variant) => variant.color === color && variant.size === size && !variant.isDeleted);
+  return existingVariants.some(
+    (variant) =>
+      variant.color === color && normalizeSizeForComparison(variant.size) === normalizeSizeForComparison(size) && !variant.isDeleted,
+  );
 }
